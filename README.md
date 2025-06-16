@@ -86,7 +86,7 @@ python cli.py
 
 ## Tecnologias
 
-- **Google Gemini 2.0 Flash** - Processamento linguagem natural
+- **Google Gemini 2.5 Flash** - Processamento linguagem natural
 - **FastAPI** - Framework web moderno
 - **Pandas** - Processamento de dados
 - **Function Calling** - Integração estruturada com IA
