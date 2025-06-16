@@ -12,7 +12,6 @@ api_key = os.getenv("GEMINI_API_KEY")
 
 if api_key:
     print("✅ API key loaded successfully!")
-    print(f"API key starts with: {api_key[:10]}...")
 else:
     print("❌ API key not found!")
     print("Make sure you have a .env file with GEMINI_API_KEY=your_key")
