@@ -1,0 +1,9 @@
+.venv/
+.idea/
+
+# Python cache and bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
