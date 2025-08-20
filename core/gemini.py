@@ -111,7 +111,7 @@ def create_function_declarations():
             "Retorna o status da bateria de uma estação de energia específica. "
             "Esta função só deve ser chamada se o parâmetro 'powerstation_id' já estiver disponível. "
             "Se o ID não estiver disponível, utilize automaticamente a função 'list_plants' para obter o ID da estação desejada antes de prosseguir."
-            "No retorno status 2 significa que esta descarregando, 1 significa que esta carregando"
+            "No retorno status 2 significa que esta descarregando, 1 significa que esta carregando, 0 significa que esta totalmente descarregada."
         ),
         parameters=types.Schema(
             type=types.Type.OBJECT,
@@ -150,6 +150,8 @@ def initialize_chat():
         print(f"❌ Error initializing chat: {e}")
         return False
 
+goodwe_api_instance = goodweApi.GoodweApi()
+
 def execute_function_call(function_call):
     """Execute the appropriate function based on the function call"""
     function_map = {
@@ -159,8 +161,8 @@ def execute_function_call(function_call):
         "check_battery_energy_flow": battery.check_battery_energy_flow,
         "add_destination_to_battery_flow": battery.add_destination_to_battery_flow,
         "remove_destination_from_battery_flow": battery.remove_destination_from_battery_flow,
-        "list_plants": goodweApi.GoodweApi().ListPlants,
-        "get_powerstation_battery_status": goodweApi.GoodweApi().GetSoc
+        "list_plants": goodwe_api_instance.ListPlants,
+        "get_powerstation_battery_status": goodwe_api_instance.GetSoc
     }
     
     function_name = function_call.name
