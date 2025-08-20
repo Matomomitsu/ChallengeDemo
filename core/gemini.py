@@ -3,6 +3,7 @@ from google.genai import types
 import os
 import core.battery as battery
 import core.solar_tools as solar_tools
+import core.goodweApi as goodweApi
 
 # Global chat instance for maintaining conversation context
 chat_instance = None
@@ -18,7 +19,7 @@ def get_system_prompt():
 def create_function_declarations():
     """Create all function declarations for both solar and battery tools"""
     functions = []
-    
+
     # Solar generation functions
     query_generation_func = types.FunctionDeclaration(
         name="query_generation",
@@ -96,6 +97,34 @@ def create_function_declarations():
         )
     )
     functions.append(remove_destination_func)
+
+    # Remove destination from battery flow
+    list_plants = types.FunctionDeclaration(
+        name="list_plants",
+        description="Will list the plants available for the user",
+    )
+    functions.append(list_plants)
+
+    get_powerstation_battery_status = types.FunctionDeclaration(
+        name="get_powerstation_battery_status",
+        description=(
+            "Retorna o status da bateria de uma estação de energia específica. "
+            "Esta função só deve ser chamada se o parâmetro 'powerstation_id' já estiver disponível. "
+            "Se o ID não estiver disponível, utilize automaticamente a função 'list_plants' para obter o ID da estação desejada antes de prosseguir."
+            "No retorno status 2 significa que esta descarregando, 1 significa que esta carregando"
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "powerstation_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="O ID da estação de energia para consultar o status da bateria."
+                )
+            },
+            required=["powerstation_id"]
+        )
+    )
+    functions.append(get_powerstation_battery_status)
     
     return functions
 
@@ -130,9 +159,12 @@ def execute_function_call(function_call):
         "check_battery_energy_flow": battery.check_battery_energy_flow,
         "add_destination_to_battery_flow": battery.add_destination_to_battery_flow,
         "remove_destination_from_battery_flow": battery.remove_destination_from_battery_flow,
+        "list_plants": goodweApi.GoodweApi().ListPlants,
+        "get_powerstation_battery_status": goodweApi.GoodweApi().GetSoc
     }
     
     function_name = function_call.name
+    print(function_call.args)
     function_args = dict(function_call.args) if function_call.args else {}
     
     if function_name in function_map:
@@ -151,46 +183,45 @@ def execute_function_call(function_call):
 async def call_geminiapi(user_input: str):
     """Main API function for processing user input"""
     global chat_instance
-    
-    # Initialize chat if not already done
+
     if chat_instance is None:
         if not initialize_chat():
             return "❌ Error: Could not initialize the chat system."
-    
+
     try:
-        # Send message to the chat
         response = chat_instance.send_message(message=user_input)
-        
-        # Check if there are function calls to execute
         function_executed = False
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            if hasattr(candidate, 'content') and candidate.content.parts:
-                for part in candidate.content.parts:
-                    if hasattr(part, 'function_call') and part.function_call:
-                        # Execute the function call
-                        result = execute_function_call(part.function_call)
-                        function_executed = True
-                        
-                        # Send function result back to continue the conversation
-                        function_response_part = types.Part.from_function_response(
-                            name=part.function_call.name,
-                            response=result
-                        )
-                        
-                        # Send the function response to get the AI's interpretation
-                        follow_up_response = chat_instance.send_message(
-                            message=[function_response_part]
-                        )
-                        
-                        return follow_up_response.text if follow_up_response.text else f"Function executed successfully. Result: {result}"
-        
-        # If no function was called, return the direct response
-        if not function_executed:
-            return response.text if response.text else "I processed your request but don't have a text response."
-        
-        return response.text if response.text else "Function executed but no response generated."
-        
+
+        while True:
+            function_response_parts = []
+            has_function_call = False
+
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'function_call') and part.function_call:
+                            result = execute_function_call(part.function_call)
+                            function_response_part = types.Part.from_function_response(
+                                name=part.function_call.name,
+                                response=result
+                            )
+                            function_response_parts.append(function_response_part)
+                            function_executed = True
+                            has_function_call = True
+                        elif hasattr(part, 'text') and part.text:
+                            print(part.text)
+                            if part.text:
+                                return part.text
+
+            if has_function_call and function_response_parts:
+                response = chat_instance.send_message(message=function_response_parts)
+            else:
+                break
+
+        if function_executed:
+            return response.text if response.text else "Funções executadas com sucesso."
+        return response.text if response.text else "Processamento concluído, mas sem resposta textual."
     except Exception as e:
         print(f"❌ Error in call_geminiapi: {e}")
         return f"❌ Error processing your request: {str(e)}"
