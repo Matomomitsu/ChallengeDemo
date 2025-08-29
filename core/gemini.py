@@ -4,9 +4,39 @@ import os
 import core.battery as battery
 import core.solar_tools as solar_tools
 import core.goodweApi as goodweApi
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Global chat instance for maintaining conversation context
 chat_instance = None
+
+def _auto_date_range(args: dict) -> dict:
+    tz = ZoneInfo("America/Sao_Paulo")
+    today = datetime.now(tz).date().isoformat()
+
+    sd = (args.get("start_date") or "").strip() if args.get("start_date") else ""
+    ed = (args.get("end_date")   or "").strip() if args.get("end_date")   else ""
+
+    SENTINELS = {"today", "hoje", "auto", "auto_today", "AUTO", "AUTO_TODAY"}
+
+    # 1) Sentinelas → hoje
+    if sd.lower() in SENTINELS or not sd:
+        sd = today
+    if ed.lower() in SENTINELS or not ed:
+        ed = sd  # se não veio end_date, use o mesmo dia por padrão
+
+    # 3) Garantir ordem
+    if sd > ed:
+        sd, ed = ed, sd
+
+    args["start_date"] = sd
+    args["end_date"]   = ed
+    return args
+
+def get_today_date():
+    """Returns the current date in ISO-8601 format."""
+    tz = ZoneInfo("America/Sao_Paulo")
+    return datetime.now(tz).date().isoformat()
 
 def get_system_prompt():
     """Load system prompt from file"""
@@ -125,7 +155,43 @@ def create_function_declarations():
         )
     )
     functions.append(get_powerstation_battery_status)
-    
+    get_alarms = types.FunctionDeclaration(
+        name="get_alarms_by_range",
+        description=("Return alarms for a date/range with open plant scope. "
+                     "Optionally filter by station name in the presentation."),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "start_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "end_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD (optional)"),
+                "status": types.Schema(type=types.Type.STRING, description='"0"=Happening, "1"=History'),
+                "stationname": types.Schema(type=types.Type.STRING, description="Optional exact station name filter (case-insensitive)")
+            },
+            required=["start_date"]
+        )
+    )
+    functions.append(get_alarms)
+
+    get_warning_detail = types.FunctionDeclaration(
+        name="get_warning_detail",
+        description="Get human-readable detail for a specific warning (stationid, warningid, devicesn).",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "stationid": types.Schema(type=types.Type.STRING),
+                "warningid": types.Schema(type=types.Type.STRING),
+                "devicesn": types.Schema(type=types.Type.STRING),
+            },
+            required=["stationid","warningid","devicesn"]
+        )
+    )
+    functions.append(get_warning_detail)
+
+    get_today_date_func = types.FunctionDeclaration(
+        name="get_today_date",
+        description="Returns the current date in ISO-8601 format (YYYY-MM-DD)."
+    )
+    functions.append(get_today_date_func)
     return functions
 
 def initialize_chat():
@@ -152,6 +218,10 @@ def initialize_chat():
 
 goodwe_api_instance = goodweApi.GoodweApi()
 
+def get_alarms_flat(**kwargs):
+    args = _auto_date_range(dict(kwargs))
+    return goodwe_api_instance.GetAlarmsByRange(**args)
+
 def execute_function_call(function_call):
     """Execute the appropriate function based on the function call"""
     function_map = {
@@ -162,7 +232,10 @@ def execute_function_call(function_call):
         "add_destination_to_battery_flow": battery.add_destination_to_battery_flow,
         "remove_destination_from_battery_flow": battery.remove_destination_from_battery_flow,
         "list_plants": goodwe_api_instance.ListPlants,
-        "get_powerstation_battery_status": goodwe_api_instance.GetSoc
+        "get_powerstation_battery_status": goodwe_api_instance.GetSoc,
+        "get_alarms_by_range": get_alarms_flat,
+        "get_warning_detail": goodwe_api_instance.GetWarningDetailTranslated,
+        "get_today_date": get_today_date,
     }
     
     function_name = function_call.name
@@ -171,7 +244,15 @@ def execute_function_call(function_call):
     
     if function_name in function_map:
         try:
+            # Apply _auto_date_range specifically for query_generation
+            if function_name == "query_generation" or function_name == "get_alarms_by_range":
+                function_args = _auto_date_range(function_args)
             result = function_map[function_name](**function_args)
+
+            # Ensure get_today_date result is a dictionary
+            if function_name == "get_today_date" and not isinstance(result, dict):
+                result = {"today_date": result}
+
             print(f"🔧 Function '{function_name}' called with args: {function_args}")
             print(f"📊 Result: {result}")
             return result
@@ -199,22 +280,24 @@ async def call_geminiapi(user_input: str):
             has_function_call = False
 
             if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'content') and candidate.content.parts:
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'function_call') and part.function_call:
-                            result = execute_function_call(part.function_call)
-                            function_response_part = types.Part.from_function_response(
-                                name=part.function_call.name,
-                                response=result
-                            )
-                            function_response_parts.append(function_response_part)
-                            function_executed = True
-                            has_function_call = True
-                        elif hasattr(part, 'text') and part.text:
-                            print(part.text)
-                            if part.text:
-                                return part.text
+                candidate = response.candidates[0] if getattr(response, "candidates", None) else None
+                content = getattr(candidate, "content", None)
+                parts = getattr(content, "parts", []) if content else []
+
+                for part in parts:
+                    if hasattr(part, "function_call") and part.function_call:
+                        result = execute_function_call(part.function_call)
+                        function_response_part = types.Part.from_function_response(
+                            name=part.function_call.name,
+                            response=result
+                        )
+                        function_response_parts.append(function_response_part)
+                        function_executed = True
+                        has_function_call = True
+                    elif hasattr(part, "text") and part.text:
+                        print(part.text)
+                        return part.text
+
 
             if has_function_call and function_response_parts:
                 response = chat_instance.send_message(message=function_response_parts)

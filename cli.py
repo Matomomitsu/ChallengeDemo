@@ -1,8 +1,10 @@
 import asyncio
 from core.gemini import call_geminiapi, initialize_chat
+from dotenv import load_dotenv
 
 def chat_interface():
     """CLI chat interface for testing"""
+    load_dotenv() 
     print("⚡ BotSolar está pronto. Pergunte sobre geração solar ou gerenciamento de bateria.")
     print("Digite 'exit', 'quit' ou 'bye' para sair.\n")
     

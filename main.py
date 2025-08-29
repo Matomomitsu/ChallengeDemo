@@ -16,6 +16,21 @@ else:
     print("❌ API key not found!")
     print("Make sure you have a .env file with GEMINI_API_KEY=your_key")
 
+goodwe_account = os.getenv("GOODWE_ACCOUNT")
+goodwe_password = os.getenv("GOODWE_PASSWORD")
+
+if goodwe_account:
+    print("✅ GOODWE_ACCOUNT loaded successfully!")
+else:
+    print("❌ GOODWE_ACCOUNT not found!")
+    print("Make sure you have a .env file with GOODWE_ACCOUNT=your_account")
+
+if goodwe_password:
+    print("✅ GOODWE_PASSWORD loaded successfully!")
+else:
+    print("❌ GOODWE_PASSWORD not found!")
+    print("Make sure you have a .env file with GOODWE_PASSWORD=your_password")
+
 app = FastAPI(
     title="BotSolar API",
     description="Comprehensive API for solar generation queries and battery management",

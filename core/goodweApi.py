@@ -4,6 +4,8 @@ from urllib import response
 import requests
 import base64
 import json
+from datetime import datetime, date, timedelta
+from collections import defaultdict
 
 class GoodweApi:
 	_instance = None
@@ -16,6 +18,8 @@ class GoodweApi:
 	def __init__(self):
 		self.token = None
 		self.tokenExp = None
+		self._last_alarm_context = None
+		self._translations = None
 
 	def TokenExpired(self):
 		if self.tokenExp:
@@ -49,23 +53,20 @@ class GoodweApi:
 
 		response = requests.post(url, json=payload, headers=headers)
 
-		dataToString = json.dumps(response.json()["data"])
-		bytes_data = dataToString.encode('utf-8')
-		encoded_bytes = base64.b64encode(bytes_data)
-		encoded_string = encoded_bytes.decode('utf-8')
+		if response.status_code == 200 and response.json() and "data" in response.json() and response.json()["data"] is not None:
+			dataToString = json.dumps(response.json()["data"])
+			bytes_data = dataToString.encode('utf-8')
+			encoded_bytes = base64.b64encode(bytes_data)
+			encoded_string = encoded_bytes.decode('utf-8')
 
-		self.tokenExp = response.json()["data"]["timestamp"]
-		self.tokenExp += 4 * 60 * 60 * 1000
+			self.tokenExp = response.json()["data"]["timestamp"]
+			self.tokenExp += 4 * 60 * 60 * 1000
 
-		print(response.status_code)
-		print(response.json())
-
-		if response.status_code == 200:
 			print("Login successful!")
 			self.token = encoded_string
 			return self.token
 		else:
-			print(f"Login failed with status code: {response.status_code}")
+			print(f"Login failed or 'data' not found in response. Status Code: {response.status_code}, Response: {response.json()}")
 			return None
 
 	def extract_powerstations(self, json_str):
@@ -153,4 +154,178 @@ class GoodweApi:
 			return soc
 		else:
 			print(f"Failed to retrieve plants with status code: {response.status_code}")
+
 			return None
+
+	# ------------------ helpers ------------------
+	def _fmt_portal_dt(self, ymd: str, end_of_day: bool = False) -> str:
+		"""
+		Convert 'YYYY-MM-DD' to 'MM/DD/YYYY HH:mm:ss' as the portal expects.
+		"""
+		d = datetime.fromisoformat(ymd)
+		if end_of_day:
+			d = d.replace(hour=23, minute=59, second=59, microsecond=0)
+		else:
+			d = d.replace(hour=0, minute=0, second=0, microsecond=0)
+		return d.strftime("%m/%d/%Y %H:%M:%S")
+
+	def _eu(self) -> str:
+		return "https://eu.semsportal.com"
+
+	def _get_translations(self):
+		if self._translations is None:
+			try:
+				translations_path = os.path.join(os.path.dirname(__file__), "..", "translations_normalized.json")
+				with open(translations_path, encoding="utf-8") as f:
+					self._translations = json.load(f)
+			except Exception as e:
+				print(f"Error loading translations: {e}")
+				self._translations = {}
+		return self._translations
+
+	def _tx(self, key: str) -> str:
+		if not key:
+			return ""
+		return self._get_translations().get(key, key)
+
+	def _alarms_payload(
+		self,
+		start_date: str,
+		end_date: str,
+		status: str = "0",
+		page_index: int = 1,
+		page_size: int = 100,
+		stationid: str = "",
+		adcode: str = "",
+		device_types=None,
+		warninglevel: int = 7,
+		fault_classification=None,
+		standard_faultLevel=None,
+		township: str = "",
+		orgid: str = ""
+	) -> dict:
+		if device_types is None:
+			device_types = []
+		if fault_classification is None:
+			fault_classification = []
+		if standard_faultLevel is None:
+			standard_faultLevel = []
+
+		return {
+			"adcode": adcode,
+			"township": township,
+			"orgid": orgid,
+			"stationid": stationid,
+			"warninglevel": warninglevel,
+			"status": str(status),
+			"starttime": self._fmt_portal_dt(start_date, end_of_day=False),
+			"endtime":   self._fmt_portal_dt(end_date,   end_of_day=True),
+			"page_size": page_size,
+			"page_index": page_index,
+			"device_type": device_types,
+			"fault_classification": fault_classification,
+			"standard_faultLevel": standard_faultLevel
+		}
+
+	def GetWarningDetail(self, stationid: str, warningid: str, devicesn: str) -> dict:
+		token = self.GetToken()
+		if not token:
+			return {"hasError": True, "msg": "No token"}
+		url = f"{self._eu()}/api/SmartOperateMaintenance/GetPowerStationWariningDetailInfo"
+		headers = {"Token": token, "Content-Type": "application/json", "Accept": "application/json"}
+		body = {"stationid": stationid, "warningid": warningid, "devicesn": devicesn}
+		r = requests.post(url, json=body, headers=headers, timeout=20)
+		if r.status_code != 200 or not r.headers.get("content-type","").startswith("application/json"):
+			return {"hasError": True, "code": r.status_code, "msg": r.text}
+		return r.json()
+
+	def GetWarningDetailTranslated(self, stationid: str, warningid: str, devicesn: str) -> dict:
+		raw = self.GetWarningDetail(stationid, warningid, devicesn)
+		data = (raw or {}).get("data", {}) or {}
+		out = {
+			"code": data.get("warning_code"),
+			"time": data.get("time"),
+			"info": self._tx(data.get("warning_info")),
+			"reason": self._tx(data.get("reason")),
+			"suggestion": self._tx(data.get("suggestion")),
+		}
+		return {"ok": not (raw or {}).get("hasError", False), "detail": out}
+
+# ------------------------------------
+
+	def GetAlarmsByRange(
+		self,
+		start_date: str,                 # 'YYYY-MM-DD'
+		end_date: str = None,            # 'YYYY-MM-DD'
+		status: str = "0",               # "0"=Happening, "1"=History
+		stationname: str = None,         # OPTIONAL: post-filter by station name (exact, case-insensitive)
+		device_types=None,               # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
+		page_size: int = 100
+	):
+		"""
+		Strategy: call the alarms endpoint with *open* plant filters (no stationid/adcode),
+		then post-filter by stationname if requested.
+
+		Returns: {"total": int, "items": [normalized...]}
+		"""
+		token = self.GetToken()
+		if not token:
+			return {"total": 0, "items": []}
+
+		if device_types is None:
+			device_types = []
+
+		if not end_date:
+			end_date = start_date
+
+		url = f"{self._eu()}/api/SmartOperateMaintenance/GetPowerStationWariningInfoByMultiCondition"
+		headers = {"Token": token, "Content-Type": "application/json", "Accept": "application/json"}
+
+		# --- open query with pagination ---
+		all_items = []
+		page_index = 1
+		total_expected = None
+
+		while True:
+			r = requests.post(
+				url,
+				json=self._alarms_payload(
+					start_date=start_date,
+					end_date=end_date,
+					status=status,
+					page_index=page_index,
+					page_size=page_size,
+					stationid="",  # consulta aberta
+					adcode="",
+					device_types=device_types
+				),
+				headers=headers,
+				timeout=20
+			)
+			if r.status_code != 200 or not r.headers.get("content-type","").startswith("application/json"):
+				break
+			j = r.json() or {}
+			data = j.get("data") or {}
+			items = data.get("list") or []
+			if total_expected is None:
+				total_expected = data.get("record") or len(items)
+			all_items.extend([x for x in items if isinstance(x, dict)])
+			if not items or len(items) < page_size:
+				break
+			page_index += 1
+
+		# --- optional post-filter by stationname (exact, case-insensitive) ---
+		if stationname:
+			sref = stationname.strip().lower()
+			all_items = [it for it in all_items if (it.get("stationname") or "").strip().lower() == sref]
+
+		# sort newest first (by happentime if available)
+		from datetime import datetime as _dt
+		def _parse_dt(s):
+			try:
+				return _dt.strptime(s, "%m/%d/%Y %H:%M:%S")
+			except Exception:
+				return None
+		all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
+
+		return {"total": len(all_items), "items": all_items}
