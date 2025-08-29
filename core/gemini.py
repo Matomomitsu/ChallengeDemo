@@ -192,7 +192,6 @@ def create_function_declarations():
         description="Returns the current date in ISO-8601 format (YYYY-MM-DD)."
     )
     functions.append(get_today_date_func)
-
     return functions
 
 def initialize_chat():
@@ -298,6 +297,7 @@ async def call_geminiapi(user_input: str):
                     elif hasattr(part, "text") and part.text:
                         print(part.text)
                         return part.text
+
 
             if has_function_call and function_response_parts:
                 response = chat_instance.send_message(message=function_response_parts)

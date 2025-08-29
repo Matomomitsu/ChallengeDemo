@@ -31,7 +31,7 @@ class GoodweApi:
 		if not self.TokenExpired():
 			return self.token
 
-		url = f"{self._eu()}/api/v2/common/crosslogin"
+		url = 'https://us.semsportal.com/api/v2/common/crosslogin'
 
 		original_string = '{"uid":"","timestamp":0,"token":"","client":"web","version":"","language":"en"}'
 		bytes_data = original_string.encode('utf-8')
@@ -154,6 +154,7 @@ class GoodweApi:
 			return soc
 		else:
 			print(f"Failed to retrieve plants with status code: {response.status_code}")
+
 			return None
 
 	# ------------------ helpers ------------------
@@ -328,5 +329,3 @@ class GoodweApi:
 		all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
 
 		return {"total": len(all_items), "items": all_items}
-	
-
