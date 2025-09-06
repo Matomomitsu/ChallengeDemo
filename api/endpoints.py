@@ -4,8 +4,8 @@ from typing import Optional
 import os
 
 from core.gemini import call_geminiapi
-import core.solar_tools as solar_tools
-import core.battery as battery
+from core.goodweApi import GoodweApi
+import os
 
 router = APIRouter()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -17,19 +17,11 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
 
-class SolarQueryRequest(BaseModel):
-    start_date: str
-    end_date: Optional[str] = None
+# (removed) CSV-based solar query request schema
 
-class SolarStatsResponse(BaseModel):
-    total_kwh: float
-    average_daily_kwh: float
-    max_daily_kwh: float
-    min_daily_kwh: float
-    total_days: int
-
-class BatteryDestinationRequest(BaseModel):
-    destinations: list[str]
+goodwe_api = GoodweApi()
+DEFAULT_STATION_NAME = "Bauer"
+DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
 
 # Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
@@ -62,119 +54,37 @@ async def process_data(data: ChatRequest):
     """
     return await chat_endpoint(data)
 
-# Direct solar generation query endpoint
-@router.post("/solar/query")
-async def solar_query(request: SolarQueryRequest):
-    """
-    ☀️ Solar Generation Data Query
-    
-    Direct access to solar generation data with date range filtering.
-    Perfect for programmatic access to historical solar data.
-    
-    - Supports single date or date range queries
-    - Returns energy generation in kWh
-    - Includes period summary
-    """
-    try:
-        result = solar_tools.query_generation(request.start_date, request.end_date)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error querying solar data: {str(e)}")
+# Removed CSV-based solar endpoints: /solar/query and /solar/stats
 
-# Solar statistics endpoint
-@router.get("/solar/stats", response_model=SolarStatsResponse)
-async def solar_stats():
-    """
-    📊 Solar System Performance Statistics
-    
-    Comprehensive analytics for your solar installation including:
-    - Total energy generated (kWh)
-    - Daily averages, maximum, and minimum values
-    - Complete performance overview
-    """
-    try:
-        stats = solar_tools.get_solar_stats()
-        if "error" in stats:
-            raise HTTPException(status_code=500, detail=stats["error"])
-        return SolarStatsResponse(**stats)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting solar stats: {str(e)}")
-
-# Battery status endpoint
+# Battery status endpoint (GoodWe-backed)
 @router.get("/battery/status")
 async def battery_status():
     """
-    🔋 Battery Management System Status
+    🔋 Battery Status (GoodWe)
     
-    Real-time battery information including:
-    - Current charge level
-    - Charging/discharging status
-    - Energy flow direction
-    
-    ⚠️ Note: Currently using placeholder data. Will be integrated with real solar inverter data.
+    Returns battery status information from the GoodWe SEMS portal. Automatically
+    selects the first available plant.
     """
     try:
-        status = battery.get_batery_usage()
-        return status
+        powerstation_id = DEFAULT_STATION_ID
+        if not powerstation_id:
+            plants = goodwe_api.ListPlants() or {}
+            plant_list = plants.get("plants", []) if isinstance(plants, dict) else []
+            if not plant_list:
+                raise HTTPException(status_code=404, detail="No plants available for the configured account")
+            # Prefer DEFAULT_STATION_NAME when present
+            preferred = next((p for p in plant_list if (p.get("stationname") or "").strip().lower() == DEFAULT_STATION_NAME.strip().lower()), None)
+            powerstation_id = (preferred or plant_list[0]).get("powerstation_id")
+        soc = goodwe_api.GetSoc(powerstation_id)
+        if soc is None:
+            raise HTTPException(status_code=502, detail="Failed to fetch battery status from GoodWe")
+        return {"powerstation_id": powerstation_id, **(soc or {})}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting battery status: {str(e)}")
 
-# Battery energy flow endpoint
-@router.get("/battery/energy-flow")
-async def battery_energy_flow():
-    """
-    ⚡ Battery Energy Flow Management
-    
-    Monitor where your battery energy is being directed:
-    - Active energy destinations
-    - Power distribution overview
-    - Load management insights
-    
-    ⚠️ Note: Placeholder implementation - real inverter integration coming soon.
-    """
-    try:
-        flow = battery.check_battery_energy_flow()
-        return flow
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error checking battery energy flow: {str(e)}")
-
-# Add battery destinations endpoint
-@router.post("/battery/add-destinations")
-async def add_battery_destinations(request: BatteryDestinationRequest):
-    """
-    ➕ Add Battery Energy Destinations
-    
-    Dynamically add new destinations for battery energy flow:
-    - Home appliances
-    - Electric vehicle charging
-    - Grid feed-in
-    
-    ⚠️ Note: Demonstration functionality - real device control pending inverter integration.
-    """
-    try:
-        result = battery.add_destination_to_battery_flow(request.destinations)
-        return {"message": "Destinations added successfully", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error adding battery destinations: {str(e)}")
-
-# Remove battery destinations endpoint
-@router.post("/battery/remove-destinations")
-async def remove_battery_destinations(request: BatteryDestinationRequest):
-    """
-    ➖ Remove Battery Energy Destinations
-    
-    Remove destinations from active battery energy flow:
-    - Stop charging specific devices
-    - Redirect energy to priority loads
-    - Optimize energy distribution
-    
-    ⚠️ Note: Demonstration functionality - real device control pending inverter integration.
-    """
-    try:
-        result = battery.remove_destination_from_battery_flow(request.destinations)
-        return {"message": "Destinations removed successfully", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error removing battery destinations: {str(e)}")
+# Removed legacy placeholder endpoints: /battery/energy-flow, add/remove-destinations
 
 # Health check endpoint
 @router.get("/health")
@@ -218,10 +128,7 @@ async def root():
         },
         "endpoints": {
             "chat": "/chat - Main conversational interface",
-            "solar_query": "/solar/query - Direct solar data queries",
-            "solar_stats": "/solar/stats - Overall solar statistics",
-            "battery_status": "/battery/status - Current battery status",
-            "battery_flow": "/battery/energy-flow - Battery energy flow info",
+            "battery_status": "/battery/status - Current battery status (GoodWe)",
             "docs": "/docs - API documentation"
         }
     } 
