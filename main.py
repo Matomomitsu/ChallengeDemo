@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import uvicorn
 import os
 from api import endpoints
+from core import goodweApi
 
 # Load environment variables
 load_dotenv()
