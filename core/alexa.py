@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from endpoints import chat_endpoint, battery_status, goodwe_api, DEFAULT_STATION_ID, DEFAULT_STATION_NAME
+from api.endpoints import chat_endpoint, battery_status, goodwe_api, DEFAULT_STATION_ID, DEFAULT_STATION_NAME
 
 router = APIRouter()
 

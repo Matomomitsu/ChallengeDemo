@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import uvicorn
 import os
 from api import endpoints
-from api.alexa import router as alexa_router
+from core.alexa import router as alexa_router
 
 # Load environment variables
 load_dotenv()
