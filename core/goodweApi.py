@@ -39,7 +39,7 @@ class GoodweApi:
         if not self.TokenExpired():
             return self.token
 
-        url = 'https://us.semsportal.com/api/v2/common/crosslogin'
+        url = 'https://eu.semsportal.com/api/v2/common/crosslogin'
 
         original_string = '{"uid":"","timestamp":0,"token":"","client":"web","version":"","language":"en"}'
         bytes_data = original_string.encode('utf-8')
@@ -165,7 +165,7 @@ class GoodweApi:
         response = requests.post(url, data=payload, headers=headers)
 
         if response.status_code == 200:
-            details = response.json()
+            details = response
             print("Plants retrieved successfully!")
             return details
         else:
@@ -379,7 +379,7 @@ class GoodweApi:
 
         details = self.GetPlantDetailByPowerstationId(powerstation_id)
         soc = self.extract_soc(details.text)
-        id = soc[0]["sn"]
+        id = soc["soc"][0]["sn"]
 
         token = self.GetToken()
         if not token:
@@ -394,7 +394,7 @@ class GoodweApi:
         }
 
         payload = {
-            "date": "2025-09-07 08:33:48",
+            "date": date,
             "powerstation_id": powerstation_id,
             "id": id
         }
