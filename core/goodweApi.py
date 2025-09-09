@@ -259,6 +259,7 @@ class GoodweApi:
 		end_date: str = None,            # 'YYYY-MM-DD'
 		status: str = "0",               # "0"=Happening, "1"=History
 		stationname: str = None,         # OPTIONAL: post-filter by station name (exact, case-insensitive)
+		stationid: str = "",             # OPTIONAL: restrict query to a specific station id
 		device_types=None,               # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
 		page_size: int = 100
 	):
@@ -295,7 +296,7 @@ class GoodweApi:
 					status=status,
 					page_index=page_index,
 					page_size=page_size,
-					stationid="",  # consulta aberta
+					stationid=stationid or "",  # restrict if provided
 					adcode="",
 					device_types=device_types
 				),

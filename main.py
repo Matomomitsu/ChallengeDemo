@@ -4,6 +4,7 @@ import uvicorn
 import os
 from api import endpoints
 
+
 # Load environment variables
 load_dotenv()
 
