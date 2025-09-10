@@ -1,4 +1,4 @@
-# BotSolar — Integração GoodWe (Sem CSV)
+# BotSolar — Integração GoodWe 
 
 Sistema unificado para gerenciamento de bateria e alarmes via GoodWe SEMS, com API REST e CLI em linguagem natural.
 

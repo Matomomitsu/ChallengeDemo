@@ -4,6 +4,7 @@ import uvicorn
 import os
 from api import endpoints
 from core.alexa import router as alexa_router
+from core import goodweApi
 
 # Load environment variables
 load_dotenv()
