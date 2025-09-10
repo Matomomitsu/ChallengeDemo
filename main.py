@@ -3,8 +3,8 @@ from dotenv import load_dotenv
 import uvicorn
 import os
 from api import endpoints
+from core.alexa import router as alexa_router
 from core import goodweApi
-
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +40,7 @@ app = FastAPI(
 )
 
 app.include_router(endpoints.router)
+app.include_router(alexa_router, prefix="/alexa")
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI server...")
