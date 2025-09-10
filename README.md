@@ -1,18 +1,15 @@
-# Sistema de Gerenciamento Solar e Bateria
+# BotSolar — Integração GoodWe 
 
-Sistema unificado para monitoramento de geração solar e gerenciamento de bateria, oferecendo interface API REST e CLI para consultas em linguagem natural.
+Sistema unificado para gerenciamento de bateria e alarmes via GoodWe SEMS, com API REST e CLI em linguagem natural.
 
 ## Funcionalidades
 
-**Monitoramento Solar:**
-- Consulta de dados históricos de geração
-- Análise estatística de desempenho
-- Processamento de dados em formato CSV
+**Monitoramento/Alarmes (GoodWe):**
+- Consulta de alarmes por intervalo de datas (aberto por planta)
+- Detalhamento de alertas com traduções
 
 **Gerenciamento de Bateria:**
-- Monitoramento de status em tempo real
-- Controle de fluxo de energia
-- Gerenciamento dinâmico de destinos
+- Monitoramento de status em tempo real (GoodWe)
 
 **Interfaces:**
 - API REST com FastAPI e documentação automática
@@ -54,15 +51,10 @@ python cli.py
 - `POST /chat` - Interface de linguagem natural
 - `POST /command` - Endpoint legado
 
-**Geração Solar:**
-- `POST /solar/query` - Consultas de geração
-- `GET /solar/stats` - Estatísticas gerais
+Removidos: endpoints de CSV de geração solar.
 
 **Bateria:**
-- `GET /battery/status` - Status atual
-- `GET /battery/energy-flow` - Fluxo de energia
-- `POST /battery/add-destinations` - Adicionar destinos
-- `POST /battery/remove-destinations` - Remover destinos
+- `GET /battery/status` - Status atual (GoodWe)
 
 **Sistema:**
 - `GET /health` - Status do sistema
@@ -74,12 +66,11 @@ python cli.py
 ├── main.py                # Aplicação FastAPI principal
 ├── cli.py                 # Interface CLI
 ├── core/
-│   ├── gemini.py          # Integração Gemini AI
-│   ├── solar_tools.py     # Processamento dados solares
-│   └── battery.py         # Gerenciamento bateria
+│   ├── gemini.py          # Integração Gemini AI (function calling)
+│   ├── goodweApi.py       # Integração GoodWe SEMS (token, plantas, SOC, alarmes)
 ├── api/
 │   └── endpoints.py       # Endpoints da API
-├── solar_generation.csv   # Dados de amostra
+└── (removido) solar_generation.csv
 ├── system_prompt.txt      # Configuração AI
 └── requirements.txt       # Dependências
 ```
@@ -88,19 +79,22 @@ python cli.py
 
 - **Google Gemini 2.5 Flash** - Processamento linguagem natural
 - **FastAPI** - Framework web moderno
-- **Pandas** - Processamento de dados
+- **GoodWe SEMS** - Fonte de dados de bateria e alarmes
 - **Function Calling** - Integração estruturada com IA
 
-## Configuração de Dados
+## Configuração
 
-**Formato CSV (solar_generation.csv):**
-```csv
-date,energy_kwh
-2025-01-01,26.99
-2025-01-02,40.82
+Crie `.env` com:
+```
+GEMINI_API_KEY=...
+GOODWE_ACCOUNT=...
+GOODWE_PASSWORD=...
+# Planta padrão (opcional; se não informar ID, usa por nome)
+DEFAULT_POWERSTATION_NAME=Bauer
+# Opcional: defina diretamente o ID
+# DEFAULT_POWERSTATION_ID=6ef62eb2-7959-4c49-ad0a-0ce75565023a
 ```
 
-**Personalização:**
-- Editar `system_prompt.txt` para modificar comportamento da IA
-- Substituir dados CSV pelos dados reais do sistema
-- Configurar variáveis de ambiente conforme necessário
+Personalização:
+- Edite `system_prompt.txt` para ajustar o comportamento da IA
+- Configure as variáveis de ambiente conforme necessário

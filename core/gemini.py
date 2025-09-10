@@ -1,14 +1,14 @@
 from google import genai
 from google.genai import types
 import os
-import core.battery as battery
-import core.solar_tools as solar_tools
 import core.goodweApi as goodweApi
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 # Global chat instance for maintaining conversation context
 chat_instance = None
+DEFAULT_STATION_NAME = "Bauer"
+DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
 
 def _auto_date_range(args: dict) -> dict:
     tz = ZoneInfo("America/Sao_Paulo")
@@ -16,6 +16,26 @@ def _auto_date_range(args: dict) -> dict:
 
     sd = (args.get("start_date") or "").strip() if args.get("start_date") else ""
     ed = (args.get("end_date")   or "").strip() if args.get("end_date")   else ""
+
+    def _parse_date_maybe(s: str) -> str:
+        if not s:
+            return s
+        s_l = s.lower()
+        if s_l in {"today", "hoje", "auto", "auto_today", "auto_today"}:
+            return "today"
+        # Accept formats: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY, MM.DD.YYYY, MM-DD-YYYY
+        from datetime import datetime as _dt
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%m.%d.%Y", "%m-%d-%Y"):
+            try:
+                d = _dt.strptime(s, fmt).date()
+                return d.isoformat()
+            except Exception:
+                pass
+        # Fallback unchanged
+        return s
+
+    sd = _parse_date_maybe(sd)
+    ed = _parse_date_maybe(ed)
 
     SENTINELS = {"today", "hoje", "auto", "auto_today", "AUTO", "AUTO_TODAY"}
 
@@ -32,6 +52,21 @@ def _auto_date_range(args: dict) -> dict:
     args["start_date"] = sd
     args["end_date"]   = ed
     return args
+
+def _get_default_powerstation_id(api: goodweApi.GoodweApi) -> str:
+    if DEFAULT_STATION_ID:
+        return DEFAULT_STATION_ID
+    try:
+        plants = api.ListPlants() or {}
+        plant_list = plants.get("plants", []) if isinstance(plants, dict) else []
+        # Prefer by name match
+        for p in plant_list:
+            if (p.get("stationname") or "").strip().lower() == DEFAULT_STATION_NAME.strip().lower():
+                return p.get("powerstation_id") or ""
+        # Fallback to first if Bauer not found
+        return (plant_list[0].get("powerstation_id") if plant_list else "") or ""
+    except Exception:
+        return ""
 
 def get_today_date():
     """Returns the current date in ISO-8601 format."""
@@ -50,6 +85,10 @@ def create_function_declarations():
     """Create all function declarations for both solar and battery tools"""
     functions = []
 
+    # Removed CSV-based solar functions
+
+    # Removed placeholder battery controls in favor of GoodWe-backed functions
+
     # Remove destination from battery flow
     list_plants = types.FunctionDeclaration(
         name="list_plants",
@@ -60,20 +99,18 @@ def create_function_declarations():
     get_powerstation_battery_status = types.FunctionDeclaration(
         name="get_powerstation_battery_status",
         description=(
-            "Retorna o status da bateria de uma estação de energia específica. "
-            "Esta função só deve ser chamada se o parâmetro 'powerstation_id' já estiver disponível. "
-            "Se o ID não estiver disponível, utilize automaticamente a função 'list_plants' para obter o ID da estação desejada antes de prosseguir."
-            "No retorno status 2 significa que esta descarregando, 1 significa que esta carregando, 0 significa que esta totalmente descarregada."
+            "Retorna o status da bateria. Se 'powerstation_id' não for informado, use a planta padrão (ex.: Bauer). "
+            "Não peça para o usuário escolher a planta a menos que ele solicite explicitamente trocar de planta. "
+            "No retorno: status 2=descarregando, 1=carregando, 0=desligada/desconectada."
         ),
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar o status da bateria."
+                    description="Opcional. ID da estação. Se ausente, usar planta padrão."
                 )
-            },
-            required=["powerstation_id"]
+            }
         )
     )
     functions.append(get_powerstation_battery_status)
@@ -196,6 +233,26 @@ goodwe_api_instance = goodweApi.GoodweApi()
 
 def get_alarms_flat(**kwargs):
     args = _auto_date_range(dict(kwargs))
+    # Default station: prefer ID route to avoid open queries
+    if not args.get("stationid"):
+        args["stationid"] = DEFAULT_STATION_ID or _get_default_powerstation_id(goodwe_api_instance)
+    if not args.get("stationname"):
+        args["stationname"] = DEFAULT_STATION_NAME
+    # Infer status if not provided
+    if not args.get("status"):
+        tz = ZoneInfo("America/Sao_Paulo")
+        today = datetime.now(tz).date()
+        try:
+            sd = datetime.fromisoformat(args.get("start_date")).date()
+            ed = datetime.fromisoformat(args.get("end_date") or args.get("start_date")).date()
+        except Exception:
+            sd = ed = today
+        if ed < today:
+            args["status"] = "1"  # recovered
+        elif sd == today and ed == today:
+            args["status"] = "0"  # happening
+        else:
+            args["status"] = "3"  # all
     return goodwe_api_instance.GetAlarmsByRange(**args)
 
 def execute_function_call(function_call):
@@ -217,9 +274,11 @@ def execute_function_call(function_call):
     
     if function_name in function_map:
         try:
-            # Apply _auto_date_range specifically for query_generation
-            if function_name == "query_generation" or function_name == "get_alarms_by_range":
+            # Apply helpers/defaults
+            if function_name == "get_alarms_by_range":
                 function_args = _auto_date_range(function_args)
+            if function_name == "get_powerstation_battery_status" and not function_args.get("powerstation_id"):
+                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
             result = function_map[function_name](**function_args)
 
             # Ensure get_today_date result is a dictionary

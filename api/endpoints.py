@@ -5,6 +5,8 @@ from fastapi import Request
 import os
 
 from core.gemini import call_geminiapi
+from core.goodweApi import GoodweApi
+import os
 
 router = APIRouter()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -16,6 +18,13 @@ class ChatResponse(BaseModel):
 class ChatRequest(BaseModel):
     user_input: str
 
+# (removed) CSV-based solar query request schema
+
+goodwe_api = GoodweApi()
+DEFAULT_STATION_NAME = "Bauer"
+DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
+
+# Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
@@ -37,6 +46,37 @@ async def chat_endpoint(request: ChatRequest):
 
 
 
+# Removed CSV-based solar endpoints: /solar/query and /solar/stats
+
+# Battery status endpoint (GoodWe-backed)
+@router.get("/battery/status")
+async def battery_status():
+    """
+    🔋 Battery Status (GoodWe)
+
+    Returns battery status information from the GoodWe SEMS portal. Automatically
+    selects the first available plant.
+    """
+    try:
+        powerstation_id = DEFAULT_STATION_ID
+        if not powerstation_id:
+            plants = goodwe_api.ListPlants() or {}
+            plant_list = plants.get("plants", []) if isinstance(plants, dict) else []
+            if not plant_list:
+                raise HTTPException(status_code=404, detail="No plants available for the configured account")
+            # Prefer DEFAULT_STATION_NAME when present
+            preferred = next((p for p in plant_list if (p.get("stationname") or "").strip().lower() == DEFAULT_STATION_NAME.strip().lower()), None)
+            powerstation_id = (preferred or plant_list[0]).get("powerstation_id")
+        soc = goodwe_api.GetSoc(powerstation_id)
+        if soc is None:
+            raise HTTPException(status_code=502, detail="Failed to fetch battery status from GoodWe")
+        return {"powerstation_id": powerstation_id, **(soc or {})}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting battery status: {str(e)}")
+
+# Removed legacy placeholder endpoints: /battery/energy-flow, add/remove-destinations
 @router.post("/google/webhook")
 async def google_webhook(request: Request):
     """
@@ -114,10 +154,7 @@ async def root():
         },
         "endpoints": {
             "chat": "/chat - Main conversational interface",
-            "solar_query": "/solar/query - Direct solar data queries",
-            "solar_stats": "/solar/stats - Overall solar statistics",
-            "battery_status": "/battery/status - Current battery status",
-            "battery_flow": "/battery/energy-flow - Battery energy flow info",
+            "battery_status": "/battery/status - Current battery status (GoodWe)",
             "docs": "/docs - API documentation"
         }
     } 

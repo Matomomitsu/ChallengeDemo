@@ -61,7 +61,8 @@ class GoodweApi:
 
         response = requests.post(url, json=payload, headers=headers)
 
-        if response.status_code == 200 and response.json() and "data" in response.json() and response.json()["data"] is not None:
+        if response.status_code == 200 and response.json() and "data" in response.json() and response.json()[
+            "data"] is not None:
             dataToString = json.dumps(response.json()["data"])
             bytes_data = dataToString.encode('utf-8')
             encoded_bytes = base64.b64encode(bytes_data)
@@ -74,7 +75,8 @@ class GoodweApi:
             self.token = encoded_string
             return self.token
         else:
-            print(f"Login failed or 'data' not found in response. Status Code: {response.status_code}, Response: {response.json()}")
+            print(
+                f"Login failed or 'data' not found in response. Status Code: {response.status_code}, Response: {response.json()}")
             return None
 
     def extract_powerstations(self, json_str):
@@ -107,23 +109,23 @@ class GoodweApi:
         }
 
         payload = {
-            "powerstation_id":"",
-            "key":"",
-            "orderby":"",
-            "powerstation_type":"",
-            "powerstation_status":"",
-            "page_index":1,
-            "page_size":20,
-            "adcode":"",
-            "org_id":"",
-            "condition":""
+            "powerstation_id": "",
+            "key": "",
+            "orderby": "",
+            "powerstation_type": "",
+            "powerstation_status": "",
+            "page_index": 1,
+            "page_size": 20,
+            "adcode": "",
+            "org_id": "",
+            "condition": ""
         }
 
         response = requests.post(url, json=payload, headers=headers)
 
         if response.status_code == 200:
             plants = self.extract_powerstations(response.text)
-            cache.set(cache_key, plants, ttl_seconds=6*60*60)  # cache for 6 hours
+            cache.set(cache_key, plants, ttl_seconds=6 * 60 * 60)  # cache for 6 hours
             print("Plants retrieved successfully!")
             return plants
         else:
@@ -221,20 +223,20 @@ class GoodweApi:
         return self._get_translations().get(key, key)
 
     def _alarms_payload(
-        self,
-        start_date: str,
-        end_date: str,
-        status: str = "0",
-        page_index: int = 1,
-        page_size: int = 100,
-        stationid: str = "",
-        adcode: str = "",
-        device_types=None,
-        warninglevel: int = 7,
-        fault_classification=None,
-        standard_faultLevel=None,
-        township: str = "",
-        orgid: str = ""
+            self,
+            start_date: str,
+            end_date: str,
+            status: str = "0",
+            page_index: int = 1,
+            page_size: int = 100,
+            stationid: str = "",
+            adcode: str = "",
+            device_types=None,
+            warninglevel: int = 7,
+            fault_classification=None,
+            standard_faultLevel=None,
+            township: str = "",
+            orgid: str = ""
     ) -> dict:
         if device_types is None:
             device_types = []
@@ -251,7 +253,7 @@ class GoodweApi:
             "warninglevel": warninglevel,
             "status": str(status),
             "starttime": self._fmt_portal_dt(start_date, end_of_day=False),
-            "endtime":   self._fmt_portal_dt(end_date,   end_of_day=True),
+            "endtime": self._fmt_portal_dt(end_date, end_of_day=True),
             "page_size": page_size,
             "page_index": page_index,
             "device_type": device_types,
@@ -267,7 +269,7 @@ class GoodweApi:
         headers = {"Token": token, "Content-Type": "application/json", "Accept": "application/json"}
         body = {"stationid": stationid, "warningid": warningid, "devicesn": devicesn}
         r = requests.post(url, json=body, headers=headers, timeout=20)
-        if r.status_code != 200 or not r.headers.get("content-type","").startswith("application/json"):
+        if r.status_code != 200 or not r.headers.get("content-type", "").startswith("application/json"):
             return {"hasError": True, "code": r.status_code, "msg": r.text}
         return r.json()
 
@@ -283,20 +285,19 @@ class GoodweApi:
         }
         return {"ok": not (raw or {}).get("hasError", False), "detail": out}
 
-# ------------------------------------
-
     def GetAlarmsByRange(
-        self,
-        start_date: str,                 # 'YYYY-MM-DD'
-        end_date: str = None,            # 'YYYY-MM-DD'
-        status: str = "0",               # "0"=Happening, "1"=History
-        stationname: str = None,         # OPTIONAL: post-filter by station name (exact, case-insensitive)
-        device_types=None,               # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
-        page_size: int = 100
+            self,
+            start_date: str,  # 'YYYY-MM-DD'
+            end_date: str = None,  # 'YYYY-MM-DD'
+            status: str = "0",  # "0"=Happening, "1"=History
+            stationname: str = None,  # OPTIONAL: post-filter by station name (exact, case-insensitive)
+            stationid: str = "",  # OPTIONAL: restrict query to a specific station id
+            device_types=None,  # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
+            page_size: int = 100
     ):
         """
-        Strategy: call the alarms endpoint with *open* plant filters (no stationid/adcode),
-        then post-filter by stationname if requested.
+		Strategy: call the alarms endpoint with *open* plant filters (no stationid/adcode),
+		then post-filter by stationname if requested.
 
         Returns: {"total": int, "items": [normalized...]}
         """
@@ -327,14 +328,14 @@ class GoodweApi:
                     status=status,
                     page_index=page_index,
                     page_size=page_size,
-                    stationid="",  # consulta aberta
+                    stationid=stationid or "",  # restrict if provided
                     adcode="",
                     device_types=device_types
                 ),
                 headers=headers,
                 timeout=20
             )
-            if r.status_code != 200 or not r.headers.get("content-type","").startswith("application/json"):
+            if r.status_code != 200 or not r.headers.get("content-type", "").startswith("application/json"):
                 break
             j = r.json() or {}
             data = j.get("data") or {}
@@ -346,27 +347,33 @@ class GoodweApi:
                 break
             page_index += 1
 
-        # --- optional post-filter by stationname (exact, case-insensitive) ---
-        if stationname:
-            sref = stationname.strip().lower()
-            all_items = [it for it in all_items if (it.get("stationname") or "").strip().lower() == sref]
 
-        # sort newest first (by happentime if available)
-        from datetime import datetime as _dt
-        def _parse_dt(s):
-            try:
-                return _dt.strptime(s, "%m/%d/%Y %H:%M:%S")
-            except Exception:
-                return None
-        all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
+            # --- optional post-filter by stationname (exact, case-insensitive) ---
+            if stationname:
+                sref = stationname.strip().lower()
+                all_items = [it for it in all_items if (it.get("stationname") or "").strip().lower() == sref]
 
-        return {"total": len(all_items), "items": all_items}
+            # sort newest first (by happentime if available)
+            from datetime import datetime as _dt
+
+
+            def _parse_dt(s):
+                try:
+                    return _dt.strptime(s, "%m/%d/%Y %H:%M:%S")
+                except Exception:
+                    return None
+
+
+            all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
+
+            return {"total": len(all_items), "items": all_items}
+
 
     def GetPowerAndIncomeByDay(
-        self,
-        powerstation_id: str,
-        date: str, # 'YYYY-MM-DD'
-        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
+            self,
+            powerstation_id: str,
+            date: str,  # 'YYYY-MM-DD'
+            count: int = 1  # number of days to retrieve (1=current day, 2=current+previous, etc.)
     ) -> dict:
         """
         Returns income and powerstation info for the given day.
@@ -405,11 +412,12 @@ class GoodweApi:
             print(f"Failed to retrieve income data with status code: {response.status_code}")
             return {"hasError": True, "code": response.status_code, "msg": response.text}
 
+
     def GetPowerAndIncomeByMonth(
-        self,
-        powerstation_id: str,
-        date: str, # 'YYYY-MM-DD'
-        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
+            self,
+            powerstation_id: str,
+            date: str,  # 'YYYY-MM-DD'
+            count: int = 1  # number of days to retrieve (1=current day, 2=current+previous, etc.)
     ) -> dict:
         """
         Returns income and powerstation info for the given Month.
@@ -449,11 +457,12 @@ class GoodweApi:
             print(f"Failed to retrieve income data with status code: {response.status_code}")
             return {"hasError": True, "code": response.status_code, "msg": response.text}
 
+
     def GetPowerAndIncomeByYear(
-        self,
-        powerstation_id: str,
-        date: str, # 'YYYY-MM-DD'
-        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
+            self,
+            powerstation_id: str,
+            date: str,  # 'YYYY-MM-DD'
+            count: int = 1  # number of days to retrieve (1=current day, 2=current+previous, etc.)
     ) -> dict:
         """
         Returns income and powerstation info for the given Year.
