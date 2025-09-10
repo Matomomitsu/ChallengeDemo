@@ -111,7 +111,7 @@ def create_function_declarations():
 
     get_powerstation_power_and_income_by_day = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_day",
-        description="Get the energy produced and income in a day.",
+        description="Get the energy produced and income in a day. In the return the d is for the date p for the power generated and i for the income.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -120,11 +120,48 @@ def create_function_declarations():
                     description="O ID da estação de energia para consultar a gereanção de energia e renda."
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "count": types.Schema(type=types.Type.INTEGER, description=" number of days to retrieve (1=current by date, 2=current+previous, etc.)"),
             },
             required=["powerstation_id","date"]
         )
     )
     functions.append(get_powerstation_power_and_income_by_day)
+
+    get_powerstation_power_and_income_by_month = types.FunctionDeclaration(
+        name="get_powerstation_power_and_income_by_month",
+        description="Get the energy produced and income in a month.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "powerstation_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda."
+                ),
+                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "count": types.Schema(type=types.Type.INTEGER, description=" number of months to retrieve (1=current by date, 2=current+previous, etc.)"),
+            },
+            required=["powerstation_id","date"]
+        )
+    )
+    functions.append(get_powerstation_power_and_income_by_month)
+
+    get_powerstation_power_and_income_by_year = types.FunctionDeclaration(
+        name="get_powerstation_power_and_income_by_year",
+        description="Get the energy produced and income in a year.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "powerstation_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda."
+                ),
+                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "count": types.Schema(type=types.Type.INTEGER, description=" number of years to retrieve (1=current by date, 2=current+previous, etc.)"),
+            },
+            required=["powerstation_id","date"]
+        )
+    )
+    functions.append(get_powerstation_power_and_income_by_year)
 
     get_today_date_func = types.FunctionDeclaration(
         name="get_today_date",
@@ -170,6 +207,8 @@ def execute_function_call(function_call):
         "get_warning_detail": goodwe_api_instance.GetWarningDetailTranslated,
         "get_today_date": get_today_date,
         "get_powerstation_power_and_income_by_day": goodwe_api_instance.GetPowerAndIncomeByDay,
+        "get_powerstation_power_and_income_by_month": goodwe_api_instance.GetPowerAndIncomeByMonth,
+        "get_powerstation_power_and_income_by_year": goodwe_api_instance.GetPowerAndIncomeByYear,
     }
     
     function_name = function_call.name

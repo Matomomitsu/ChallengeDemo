@@ -365,18 +365,12 @@ class GoodweApi:
     def GetPowerAndIncomeByDay(
         self,
         powerstation_id: str,
-        date: str  # 'YYYY-MM-DD'
+        date: str, # 'YYYY-MM-DD'
+        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
     ) -> dict:
         """
         Returns income and powerstation info for the given day.
         """
-        cache = CacheServices.instance()
-        cache_key = f"income_{powerstation_id}_{date}"
-        cached = cache.get(cache_key)
-        if cached:
-            print("Income data retrieved from cache (24h)!")
-            return cached
-
         details = self.GetPlantDetailByPowerstationId(powerstation_id)
         soc = self.extract_soc(details.text)
         id = soc["soc"][0]["sn"]
@@ -389,23 +383,112 @@ class GoodweApi:
 
         headers = {
             'Token': token,
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
             'Accept': '*/*'
         }
 
         payload = {
-            "date": date,
+            "date": date + " 00:00:00",
             "powerstation_id": powerstation_id,
-            "id": id
+            "id": id,
+            "count": count
         }
 
         response = requests.post(url, json=payload, headers=headers)
 
         if response.status_code == 200:
             data = response.json()
-            cache.set(cache_key, data, ttl_seconds=24*60*60)  # cache for 24 hours
+            dateGeneration = data.get("data", [])
             print("Income data retrieved successfully!")
-            return data
+            return {"datePowerandIncome": dateGeneration}
+        else:
+            print(f"Failed to retrieve income data with status code: {response.status_code}")
+            return {"hasError": True, "code": response.status_code, "msg": response.text}
+
+    def GetPowerAndIncomeByMonth(
+        self,
+        powerstation_id: str,
+        date: str, # 'YYYY-MM-DD'
+        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
+    ) -> dict:
+        """
+        Returns income and powerstation info for the given Month.
+        """
+
+        details = self.GetPlantDetailByPowerstationId(powerstation_id)
+        soc = self.extract_soc(details.text)
+        sn = soc["soc"][0]["sn"]
+
+        token = self.GetToken()
+        if not token:
+            return {"hasError": True, "msg": "No token"}
+
+        url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByMonth"
+
+        headers = {
+            'Token': token,
+            'Content-Type': 'application/json',
+            'Accept': '*/*'
+        }
+
+        payload = {
+            "date": date + " 00:00:00",
+            "id": powerstation_id,
+            "sn": sn,
+            "count": count
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            dateGeneration = data.get("data", [])
+            print("Income data retrieved successfully!")
+            return {"datePowerandIncome": dateGeneration}
+        else:
+            print(f"Failed to retrieve income data with status code: {response.status_code}")
+            return {"hasError": True, "code": response.status_code, "msg": response.text}
+
+    def GetPowerAndIncomeByYear(
+        self,
+        powerstation_id: str,
+        date: str, # 'YYYY-MM-DD'
+        count: int = 1 # number of days to retrieve (1=current day, 2=current+previous, etc.)
+    ) -> dict:
+        """
+        Returns income and powerstation info for the given Year.
+        """
+
+        details = self.GetPlantDetailByPowerstationId(powerstation_id)
+        soc = self.extract_soc(details.text)
+        sn = soc["soc"][0]["sn"]
+
+        token = self.GetToken()
+        if not token:
+            return {"hasError": True, "msg": "No token"}
+
+        url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByYear"
+
+        headers = {
+            'Token': token,
+            'Content-Type': 'application/json',
+            'Accept': '*/*'
+        }
+
+        payload = {
+            "date": date + " 00:00:00",
+            "id": powerstation_id,
+            "sn": sn,
+            "count": count
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            dateGeneration = data.get("data", [])
+            print("Income data retrieved successfully!")
+            return {"datePowerandIncome": dateGeneration}
         else:
             print(f"Failed to retrieve income data with status code: {response.status_code}")
             return {"hasError": True, "code": response.status_code, "msg": response.text}
