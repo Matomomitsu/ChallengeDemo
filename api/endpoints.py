@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from fastapi import Request
 import os
 
 from core.gemini import call_geminiapi
@@ -10,12 +11,12 @@ import os
 router = APIRouter()
 api_key = os.getenv("GEMINI_API_KEY")
 
-# Request/Response Models
-class ChatRequest(BaseModel):
-    user_input: str
-
+# Main chat endpoint (maintains conversation context)
 class ChatResponse(BaseModel):
     response: str
+
+class ChatRequest(BaseModel):
+    user_input: str
 
 # (removed) CSV-based solar query request schema
 
@@ -43,16 +44,7 @@ async def chat_endpoint(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
-# Legacy endpoint for backward compatibility
-@router.post("/command")
-async def process_data(data: ChatRequest):
-    """
-    📋 Legacy Command Processor
-    
-    Backward compatibility endpoint that redirects to the new chat interface.
-    Maintained for existing integrations.
-    """
-    return await chat_endpoint(data)
+
 
 # Removed CSV-based solar endpoints: /solar/query and /solar/stats
 
@@ -61,7 +53,7 @@ async def process_data(data: ChatRequest):
 async def battery_status():
     """
     🔋 Battery Status (GoodWe)
-    
+
     Returns battery status information from the GoodWe SEMS portal. Automatically
     selects the first available plant.
     """
@@ -85,6 +77,40 @@ async def battery_status():
         raise HTTPException(status_code=500, detail=f"Error getting battery status: {str(e)}")
 
 # Removed legacy placeholder endpoints: /battery/energy-flow, add/remove-destinations
+@router.post("/google/webhook")
+async def google_webhook(request: Request):
+    """
+    Webhook para integração com Google Assistant/Dialogflow.
+    """
+    try:
+        body = await request.json()
+        user_input = body.get("queryResult", {}).get("queryText", "")
+        response_text = await call_geminiapi(user_input)
+        return {
+            "fulfillmentMessages": [
+                {
+                    "text": {
+                        "text": [response_text]
+                    }
+                }
+            ],
+            "payload": {
+                "google": {
+                    "expectUserResponse": True,
+                    "richResponse": {
+                        "items": [
+                            {
+                                "simpleResponse": {
+                                    "textToSpeech": response_text
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao processar o webhook: {str(e)}")
 
 # Health check endpoint
 @router.get("/health")
