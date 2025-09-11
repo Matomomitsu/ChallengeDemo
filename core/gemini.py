@@ -154,7 +154,7 @@ def create_function_declarations():
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda."
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of days to retrieve (1=current by date, 2=current+previous, etc.)"),
@@ -172,7 +172,7 @@ def create_function_declarations():
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda."
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants."
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of months to retrieve (1=current by date, 2=current+previous, etc.)"),
@@ -190,7 +190,7 @@ def create_function_declarations():
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda."
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of years to retrieve (1=current by date, 2=current+previous, etc.)"),

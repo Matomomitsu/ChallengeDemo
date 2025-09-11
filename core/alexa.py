@@ -49,7 +49,7 @@ async def alexa_endpoint(req: dict):
 
             chat_req = ChatRequest(user_input)
             response = await chat_endpoint(chat_req)
-            return build_alexa_response(response.response, True)
+            return build_alexa_response(response.response, False)
 
         # --- Outros tipos de requisição não suportados ---
         else:
