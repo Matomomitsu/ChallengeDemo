@@ -39,6 +39,7 @@ python main.py
 ```
 - Servidor: `http://localhost:8001`
 - Documentação: `http://localhost:8001/docs`
+- Web Demo: `http://localhost:8001/demo`
 
 **Interface CLI:**
 ```bash
