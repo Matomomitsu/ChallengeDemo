@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import uvicorn
 import os
@@ -41,6 +42,9 @@ app = FastAPI(
 
 app.include_router(endpoints.router)
 app.include_router(alexa_router, prefix="/alexa")
+
+# Serve the WebDemo static site at /demo
+app.mount("/demo", StaticFiles(directory="WebDemo", html=True), name="demo")
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI server...")
