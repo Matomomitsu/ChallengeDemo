@@ -135,11 +135,6 @@ def _get_default_powerstation_id(api: goodweApi.GoodweApi) -> str:
     except Exception:
         return ""
 
-def get_today_date():
-    """Returns the current date in ISO-8601 format."""
-    tz = ZoneInfo("America/Sao_Paulo")
-    return datetime.now(tz).date().isoformat()
-
 def get_system_prompt():
     """Load system prompt from file"""
     try:
@@ -188,8 +183,8 @@ def create_function_declarations():
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
-                "start_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
-                "end_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD (optional)"),
+                "start_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD , also can be 'today' or 'hoje' or 'yesterday' or 'ontem'"),
+                "end_date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD (optional), also can be 'today' or 'hoje' or 'yesterday' or 'ontem'"),
                 "status": types.Schema(type=types.Type.STRING, description='"0"=Happening, "1"=History'),
                 "stationname": types.Schema(type=types.Type.STRING, description="Optional exact station name filter (case-insensitive)")
             },
@@ -215,63 +210,58 @@ def create_function_declarations():
 
     get_powerstation_power_and_income_by_day = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_day",
-        description="Get the energy produced and income in a day. In the return the d is for the date p for the power generated and i for the income.",
+        description="Get the energy produced and income in a day. In the return the d is for the date p for the power generated and i for the income that is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
-                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD , also can be 'today' or 'hoje' or 'yesterday' or 'ontem'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of days to retrieve (1=current by date, 2=current+previous, etc.)"),
             },
-            required=["powerstation_id","date"]
+            required=["date"]
         )
     )
     functions.append(get_powerstation_power_and_income_by_day)
 
     get_powerstation_power_and_income_by_month = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_month",
-        description="Get the energy produced and income in a month.",
+        description="Get the energy produced and income in a month. The income is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants."
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
-                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD, if its something like 'this month' pass 'today'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of months to retrieve (1=current by date, 2=current+previous, etc.)"),
             },
-            required=["powerstation_id","date"]
+            required=["date"]
         )
     )
     functions.append(get_powerstation_power_and_income_by_month)
 
     get_powerstation_power_and_income_by_year = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_year",
-        description="Get the energy produced and income in a year.",
+        description="Get the energy produced and income in a year. The income is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
-                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD"),
+                "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD, if its something like 'this year' pass 'today'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of years to retrieve (1=current by date, 2=current+previous, etc.)"),
             },
-            required=["powerstation_id","date"]
+            required=["date"]
         )
     )
     functions.append(get_powerstation_power_and_income_by_year)
 
-    get_today_date_func = types.FunctionDeclaration(
-        name="get_today_date",
-        description="Returns the current date in ISO-8601 format (YYYY-MM-DD)."
-    )
-    functions.append(get_today_date_func)
 
     # Usage optimization (statistical summary for recommendations)
     optimize_usage = types.FunctionDeclaration(
@@ -298,12 +288,12 @@ def create_function_declarations():
 def initialize_chat():
     """Initialize the chat with system prompt and tools"""
     global chat_instance
-    
+
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         system_prompt = get_system_prompt()
         function_declarations = create_function_declarations()
-        
+
         # Create the chat with tools and system instruction
         chat_instance = client.chats.create(
             model="gemini-2.5-flash-preview-05-20",
@@ -348,17 +338,16 @@ def execute_function_call(function_call):
         "get_powerstation_battery_status": goodwe_api_instance.GetSoc,
         "get_alarms_by_range": get_alarms_flat,
         "get_warning_detail": goodwe_api_instance.GetWarningDetailTranslated,
-        "get_today_date": get_today_date,
         "get_powerstation_power_and_income_by_day": goodwe_api_instance.GetPowerAndIncomeByDay,
         "get_powerstation_power_and_income_by_month": goodwe_api_instance.GetPowerAndIncomeByMonth,
         "get_powerstation_power_and_income_by_year": goodwe_api_instance.GetPowerAndIncomeByYear,
         "optimize_usage": usage_optimizer.optimize_usage,
     }
-    
+
     function_name = function_call.name
     print(function_call.args)
     function_args = dict(function_call.args) if function_call.args else {}
-    
+
     if function_name in function_map:
         try:
             # Apply helpers/defaults
@@ -366,11 +355,9 @@ def execute_function_call(function_call):
                 function_args = _auto_date_range(function_args)
             if function_name == "get_powerstation_battery_status" and not function_args.get("powerstation_id"):
                 function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
+            if function_name.startswith("get_powerstation_power_and_income_by_") and not function_args.get("powerstation_id"):
+                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
             result = function_map[function_name](**function_args)
-
-            # Ensure get_today_date result is a dictionary
-            if function_name == "get_today_date" and not isinstance(result, dict):
-                result = {"today_date": result}
 
             print(f"🔧 Function '{function_name}' called with args: {function_args}")
             print(f"📊 Result: {result}")
