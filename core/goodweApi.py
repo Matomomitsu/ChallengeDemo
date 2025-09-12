@@ -36,7 +36,7 @@ class GoodweApi:
             return self.tokenExp < timenow
         return True
 
-    def get_date(date: str = None) -> str:
+    def get_date(self, date: str = None) -> str:
         """Returns the current date in ISO-8601 format."""
         tz = ZoneInfo("America/Sao_Paulo")
         match (date):

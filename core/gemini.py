@@ -143,13 +143,13 @@ def create_function_declarations():
 
     get_powerstation_power_and_income_by_day = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_day",
-        description="Get the energy produced and income in a day. In the return the d is for the date p for the power generated and i for the income.",
+        description="Get the energy produced and income in a day. In the return the d is for the date p for the power generated and i for the income that is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD , also can be 'today' or 'hoje' or 'yesterday' or 'ontem'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of days to retrieve (1=current by date, 2=current+previous, etc.)"),
@@ -161,13 +161,13 @@ def create_function_declarations():
 
     get_powerstation_power_and_income_by_month = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_month",
-        description="Get the energy produced and income in a month.",
+        description="Get the energy produced and income in a month. The income is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants."
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD, if its something like 'this month' pass 'today'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of months to retrieve (1=current by date, 2=current+previous, etc.)"),
@@ -179,13 +179,13 @@ def create_function_declarations():
 
     get_powerstation_power_and_income_by_year = types.FunctionDeclaration(
         name="get_powerstation_power_and_income_by_year",
-        description="Get the energy produced and income in a year.",
+        description="Get the energy produced and income in a year. The income is in dolar.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants"
+                    description="O ID da estação de energia para consultar a gereanção de energia e renda. Necessário pegar o ID da planta primeiro com a função list_plants caso fornecido o nome da planta."
                 ),
                 "date": types.Schema(type=types.Type.STRING, description="YYYY-MM-DD, if its something like 'this year' pass 'today'"),
                 "count": types.Schema(type=types.Type.INTEGER, description=" number of years to retrieve (1=current by date, 2=current+previous, etc.)"),
