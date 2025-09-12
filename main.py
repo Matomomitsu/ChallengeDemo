@@ -40,8 +40,8 @@ app = FastAPI(
     version="2.0.0"
 )
 
-app.include_router(endpoints.router)
-app.include_router(alexa_router, prefix="/alexa")
+app.include_router(endpoints.router, prefix="/api")
+app.include_router(alexa_router, prefix="/api")
 
 # Serve the WebDemo static site at /demo
 app.mount("/demo", StaticFiles(directory="WebDemo", html=True), name="demo")

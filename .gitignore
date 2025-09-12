@@ -1,6 +1,6 @@
 .venv/
 .idea/
-
+nginx/*
 # Python cache and bytecode files
 __pycache__/
 *.py[cod]
