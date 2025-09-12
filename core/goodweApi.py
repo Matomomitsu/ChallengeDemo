@@ -236,7 +236,8 @@ class GoodweApi:
             fault_classification=None,
             standard_faultLevel=None,
             township: str = "",
-            orgid: str = ""
+            orgid: str = "",
+            searchKey: str = ""
     ) -> dict:
         if device_types is None:
             device_types = []
@@ -256,6 +257,7 @@ class GoodweApi:
             "endtime": self._fmt_portal_dt(end_date, end_of_day=True),
             "page_size": page_size,
             "page_index": page_index,
+            "searchKey": searchKey,
             "device_type": device_types,
             "fault_classification": fault_classification,
             "standard_faultLevel": standard_faultLevel
@@ -293,7 +295,8 @@ class GoodweApi:
             stationname: str = None,  # OPTIONAL: post-filter by station name (exact, case-insensitive)
             stationid: str = "",  # OPTIONAL: restrict query to a specific station id
             device_types=None,  # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
-            page_size: int = 100
+            page_size: int = 100,
+            searchKey: str = ""
     ):
         """
 		Strategy: call the alarms endpoint with *open* plant filters (no stationid/adcode),
@@ -330,7 +333,8 @@ class GoodweApi:
                     page_size=page_size,
                     stationid=stationid or "",  # restrict if provided
                     adcode="",
-                    device_types=device_types
+                    device_types=device_types,
+                    searchKey=searchKey or ""
                 ),
                 headers=headers,
                 timeout=20
@@ -347,26 +351,23 @@ class GoodweApi:
                 break
             page_index += 1
 
+        # --- optional post-filter by stationname (exact, case-insensitive) ---
+        if stationname:
+            sref = stationname.strip().lower()
+            all_items = [it for it in all_items if (it.get("stationname") or "").strip().lower() == sref]
 
-            # --- optional post-filter by stationname (exact, case-insensitive) ---
-            if stationname:
-                sref = stationname.strip().lower()
-                all_items = [it for it in all_items if (it.get("stationname") or "").strip().lower() == sref]
+        # sort newest first (by happentime if available)
+        from datetime import datetime as _dt
 
-            # sort newest first (by happentime if available)
-            from datetime import datetime as _dt
+        def _parse_dt(s):
+            try:
+                return _dt.strptime(s, "%m/%d/%Y %H:%M:%S")
+            except Exception:
+                return None
 
+        all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
 
-            def _parse_dt(s):
-                try:
-                    return _dt.strptime(s, "%m/%d/%Y %H:%M:%S")
-                except Exception:
-                    return None
-
-
-            all_items.sort(key=lambda it: _parse_dt(it.get("happentime") or "") or _dt.min, reverse=True)
-
-            return {"total": len(all_items), "items": all_items}
+        return {"total": len(all_items), "items": all_items}
 
 
     def GetPowerAndIncomeByDay(

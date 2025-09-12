@@ -1,5 +1,8 @@
 import asyncio
+import argparse
+import json
 from core.gemini import call_geminiapi, initialize_chat
+from core.sems_history import fetch_and_parse_7d
 from dotenv import load_dotenv
 
 def chat_interface():
@@ -30,5 +33,38 @@ def chat_interface():
         except Exception as e:
             print(f"❌ Erro: {e}\n")
 
+def main():
+    parser = argparse.ArgumentParser(description="BotSolar CLI")
+    sub = parser.add_subparsers(dest="command")
+
+    # Default chat
+    sub.add_parser("chat", help="Interactive chat interface")
+
+    # 7-day history fetch/parse (standalone, no Gemini involvement)
+    p_hist = sub.add_parser("history7d", help="Fetch and parse last 7 days of GoodWe history")
+    p_hist.add_argument("--station-id", dest="station_id", default=None, help="Optional powerstation id (defaults from env or first plant)")
+    p_hist.add_argument("--inverter-sn", dest="inverter_sn", default=None, help="Optional inverter serial number (defaults to Bauer SN if missing)")
+    p_hist.add_argument("--no-save", action="store_true", help="Do not save output files to data/")
+
+    args = parser.parse_args()
+
+    if args.command == "history7d":
+        load_dotenv()
+        res = fetch_and_parse_7d(station_id=args.station_id, inverter_sn=args.inverter_sn, save_files=not args.no_save)
+        # Print only lightweight confirmation to avoid large dumps
+        out = {
+            "saved": bool(res.get("files")),
+            "files": res.get("files"),
+            "points": res.get("parsed_generic", {}).get("metadata", {}).get("total_points"),
+            "avg_battery_soc": res.get("parsed_focus", {}).get("summary", {}).get("avg_battery_soc"),
+            "max_solar_generation": res.get("parsed_focus", {}).get("summary", {}).get("max_solar_generation"),
+        }
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
+
+    # default to chat
+    chat_interface()
+
+
 if __name__ == "__main__":
-    chat_interface() 
+    main()
