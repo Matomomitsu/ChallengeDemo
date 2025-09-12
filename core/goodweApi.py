@@ -1,6 +1,7 @@
 import time
 import os
 from urllib import response
+from zoneinfo import ZoneInfo
 import requests
 import base64
 import json
@@ -34,6 +35,18 @@ class GoodweApi:
             timenow = int(time.time() * 1000)
             return self.tokenExp < timenow
         return True
+
+    def get_date(date: str = None) -> str:
+        """Returns the current date in ISO-8601 format."""
+        tz = ZoneInfo("America/Sao_Paulo")
+        match (date):
+            case "today" | "hoje":
+                return datetime.now(tz).date().isoformat()
+            case "yesterday" | "ontem":
+                return (datetime.now(tz).date() - timedelta(days=1)).isoformat()
+            case None:
+                return datetime.now(tz).date().isoformat()
+        return date
 
     def GetToken(self):
         if not self.TokenExpired():
@@ -308,8 +321,12 @@ class GoodweApi:
         if device_types is None:
             device_types = []
 
+        start_date = self.get_date(start_date)
+
         if not end_date:
             end_date = start_date
+
+        end_date = self.get_date(end_date)
 
         url = f"{self._eu()}/api/SmartOperateMaintenance/GetPowerStationWariningInfoByMultiCondition"
         headers = {"Token": token, "Content-Type": "application/json", "Accept": "application/json"}
@@ -388,6 +405,8 @@ class GoodweApi:
 
         url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByDay"
 
+        date = self.get_date(date)
+
         headers = {
             'Token': token,
             'Content-Type': 'application/json',
@@ -430,6 +449,8 @@ class GoodweApi:
         token = self.GetToken()
         if not token:
             return {"hasError": True, "msg": "No token"}
+
+        date = self.get_date(date)
 
         url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByMonth"
 
@@ -475,6 +496,8 @@ class GoodweApi:
         token = self.GetToken()
         if not token:
             return {"hasError": True, "msg": "No token"}
+
+        date = self.get_date(date)
 
         url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByYear"
 
