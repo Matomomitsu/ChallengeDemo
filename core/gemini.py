@@ -2,6 +2,7 @@ from google import genai
 from google.genai import types
 import os
 import core.goodweApi as goodweApi
+from core import usage_optimizer
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -12,45 +13,111 @@ DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
 
 def _auto_date_range(args: dict) -> dict:
     tz = ZoneInfo("America/Sao_Paulo")
-    today = datetime.now(tz).date().isoformat()
+    today_dt = datetime.now(tz).date()
 
-    sd = (args.get("start_date") or "").strip() if args.get("start_date") else ""
-    ed = (args.get("end_date")   or "").strip() if args.get("end_date")   else ""
+    sd_raw = (args.get("start_date") or "").strip() if args.get("start_date") else ""
+    ed_raw = (args.get("end_date")   or "").strip() if args.get("end_date")   else ""
 
-    def _parse_date_maybe(s: str) -> str:
-        if not s:
-            return s
-        s_l = s.lower()
-        if s_l in {"today", "hoje", "auto", "auto_today", "auto_today"}:
-            return "today"
-        # Accept formats: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY, MM.DD.YYYY, MM-DD-YYYY
-        from datetime import datetime as _dt
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%m.%d.%Y", "%m-%d-%Y"):
+    # Helpers
+    import re as _re
+    from datetime import datetime as _dt, timedelta as _td
+
+    def _try_parse_iso(s: str):
+        try:
+            return _dt.strptime(s, "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    def _try_parse_br(s: str):
+        for fmt in ("%d/%m/%Y", "%d/%m/%y"):
             try:
-                d = _dt.strptime(s, fmt).date()
-                return d.isoformat()
+                return _dt.strptime(s, fmt).date()
             except Exception:
-                pass
-        # Fallback unchanged
-        return s
+                continue
+        return None
 
-    sd = _parse_date_maybe(sd)
-    ed = _parse_date_maybe(ed)
+    def _parse_relative(s: str):
+        if not s:
+            return None
+        s_l = s.lower().strip()
+        if s_l in {"today", "hoje"}:
+            return today_dt
+        if s_l in {"ontem", "yesterday"}:
+            return today_dt - _td(days=1)
+        # hoje-<n>
+        m = _re.match(r"^(hoje|today)-(\d+)$", s_l)
+        if m:
+            return today_dt - _td(days=int(m.group(2)))
+        # absolute-<n> pattern like 2025-09-12-30
+        m2 = _re.match(r"^(\d{4}-\d{2}-\d{2})-(\d+)$", s_l)
+        if m2:
+            base = _try_parse_iso(m2.group(1))
+            if base:
+                return base - _td(days=int(m2.group(2)))
+        # month/year ranges handled outside
+        return None
 
-    SENTINELS = {"today", "hoje", "auto", "auto_today", "AUTO", "AUTO_TODAY"}
+    def _month_bounds(d):
+        first = d.replace(day=1)
+        next_month = (first.replace(day=28) + _td(days=4)).replace(day=1)
+        last = next_month - _td(days=1)
+        return first, last
 
-    # 1) Sentinelas → hoje
-    if sd.lower() in SENTINELS or not sd:
-        sd = today
-    if ed.lower() in SENTINELS or not ed:
-        ed = sd  # se não veio end_date, use o mesmo dia por padrão
+    # Defaults: if both missing → year-to-date
+    sd_dt = ed_dt = None
 
-    # 3) Garantir ordem
-    if sd > ed:
-        sd, ed = ed, sd
+    # Quick range phrases on start_date
+    sd_lower = (sd_raw or "").lower()
+    if not sd_raw and not ed_raw:
+        sd_dt = today_dt.replace(month=1, day=1)
+        ed_dt = today_dt
+    elif sd_lower in {"este ano", "ano atual", "this year"}:
+        sd_dt = today_dt.replace(month=1, day=1)
+        ed_dt = today_dt if not ed_raw else None
+    elif sd_lower in {"este mes", "este mês", "mes atual", "mês atual", "this month"}:
+        first, _ = _month_bounds(today_dt)
+        sd_dt = first
+        ed_dt = today_dt if not ed_raw else None
+    elif sd_lower in {"mes passado", "mês passado", "last month"}:
+        first_this, _ = _month_bounds(today_dt)
+        last_prev = first_this - _td(days=1)
+        first_prev, last_prev_b = _month_bounds(last_prev)
+        sd_dt = first_prev
+        ed_dt = last_prev_b
+    else:
+        # Try parse direct/relative
+        sd_dt = _try_parse_iso(sd_raw) or _try_parse_br(sd_raw) or _parse_relative(sd_raw)
 
-    args["start_date"] = sd
-    args["end_date"]   = ed
+    # Parse end side if needed
+    if ed_dt is None:
+        ed_lower = (ed_raw or "").lower()
+        if not ed_raw:
+            # If only sd provided, default ed = sd for single-day unless sd was a range phrase above
+            ed_dt = sd_dt or today_dt
+        elif ed_lower in {"today", "hoje"}:
+            ed_dt = today_dt
+        elif ed_lower in {"ontem", "yesterday"}:
+            ed_dt = today_dt - _td(days=1)
+        else:
+            ed_dt = _try_parse_iso(ed_raw) or _try_parse_br(ed_raw) or _parse_relative(ed_raw)
+
+    # If "últimos N dias" form appears anywhere in sd_raw, convert to [today-(N-1), today]
+    m_last = _re.search(r"\b(?:ultimos|últimos|last)\s+(\d+)\s+dias\b", sd_lower)
+    if m_last:
+        n = int(m_last.group(1))
+        ed_dt = today_dt
+        sd_dt = today_dt - _td(days=max(0, n - 1))
+
+    # Ensure both exist
+    sd_dt = sd_dt or today_dt
+    ed_dt = ed_dt or sd_dt
+
+    # Order
+    if sd_dt > ed_dt:
+        sd_dt, ed_dt = ed_dt, sd_dt
+
+    args["start_date"] = sd_dt.isoformat()
+    args["end_date"]   = ed_dt.isoformat()
     return args
 
 def _get_default_powerstation_id(api: goodweApi.GoodweApi) -> str:
@@ -195,6 +262,27 @@ def create_function_declarations():
     )
     functions.append(get_powerstation_power_and_income_by_year)
 
+
+    # Usage optimization (statistical summary for recommendations)
+    optimize_usage = types.FunctionDeclaration(
+        name="optimize_usage",
+        description=(
+            "Gera um relatório estatístico curto a partir do histórico de 7 dias (minuto a minuto). "
+            "Use quando o usuário pedir para otimizar o uso, e.g., 'otimize meu uso', 'otimizar consumo', "
+            "'optimize my usage'. O retorno inclui janelas típicas de maior geração, horas de menor SOC, "
+            "e médias agregadas."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "parsed_path": types.Schema(
+                    type=types.Type.STRING,
+                    description="Opcional. Caminho para um arquivo history7d_parsed_*.json. Se ausente, usa o mais recente."
+                )
+            }
+        )
+    )
+    functions.append(optimize_usage)
     return functions
 
 def initialize_chat():
@@ -223,11 +311,10 @@ goodwe_api_instance = goodweApi.GoodweApi()
 
 def get_alarms_flat(**kwargs):
     args = _auto_date_range(dict(kwargs))
-    # Default station: prefer ID route to avoid open queries
-    if not args.get("stationid"):
-        args["stationid"] = DEFAULT_STATION_ID or _get_default_powerstation_id(goodwe_api_instance)
-    if not args.get("stationname"):
-        args["stationname"] = DEFAULT_STATION_NAME
+    # Do not force stationid; use searchKey when stationname is provided
+    stationname = args.get("stationname") or DEFAULT_STATION_NAME
+    args["stationname"] = stationname
+    args["searchKey"] = stationname
     # Infer status if not provided
     if not args.get("status"):
         tz = ZoneInfo("America/Sao_Paulo")
@@ -237,12 +324,11 @@ def get_alarms_flat(**kwargs):
             ed = datetime.fromisoformat(args.get("end_date") or args.get("start_date")).date()
         except Exception:
             sd = ed = today
-        if ed < today:
-            args["status"] = "1"  # recovered
-        elif sd == today and ed == today:
-            args["status"] = "0"  # happening
+        # New heuristic: default to ALL ("3"), except when only today
+        if sd == today and ed == today:
+            args["status"] = "0"  # happening today
         else:
-            args["status"] = "3"  # all
+            args["status"] = "3"  # all statuses for ranges/past
     return goodwe_api_instance.GetAlarmsByRange(**args)
 
 def execute_function_call(function_call):
@@ -255,6 +341,7 @@ def execute_function_call(function_call):
         "get_powerstation_power_and_income_by_day": goodwe_api_instance.GetPowerAndIncomeByDay,
         "get_powerstation_power_and_income_by_month": goodwe_api_instance.GetPowerAndIncomeByMonth,
         "get_powerstation_power_and_income_by_year": goodwe_api_instance.GetPowerAndIncomeByYear,
+        "optimize_usage": usage_optimizer.optimize_usage,
     }
 
     function_name = function_call.name
