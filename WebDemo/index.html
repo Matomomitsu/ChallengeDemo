@@ -296,7 +296,7 @@
           <h3 class="heading_h2">Converse com o assistente via terminal</h3>
           <p class="subheading">Teste aberto. Envie um comando ou pergunta e veja a resposta.
           Todas as funcionalidades e comportamentos demonstrados aqui são os mesmos expostos na Alexa por meio da nossa skill — a experiência de voz reproduz as mesmas capacidades de consulta, otimização e explicabilidade técnica.</p>
-          
+
         </div>
       </div>
     </div>
@@ -464,7 +464,7 @@
 
         if (loading) loading.style.display='block';
         var t0=performance.now();
-        fetch('/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ user_input: q }) })
+        fetch('/api/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ user_input: q }) })
           .then(function(res){ var s=res.status; return res.json().then(function(j){ return { status:s, json:j }; }); })
           .then(function(p){
             if (loading) loading.style.display='none';
@@ -542,7 +542,7 @@
       // Start API call immediately to reduce perceived latency
       if (loadingEl) loadingEl.style.display = 'block';
       var t0 = performance.now();
-      var fetchPromise = fetch('/chat', {
+      var fetchPromise = fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_input: text })
@@ -569,7 +569,7 @@
           if (explainSteps) {
             explainSteps.innerHTML = '';
             renderStep(explainSteps, 'M5 12h14M13 5l7 7-7 7', 'Entrada enviada: "'+ text +'"');
-            renderStep(explainSteps, 'M2 12h20', 'Endpoint: /chat (POST)');
+            renderStep(explainSteps, 'M2 12h20', 'Endpoint: /api/chat (POST)');
             renderStep(explainSteps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi');
           }
           if (explainStats) {
@@ -634,7 +634,7 @@
       var question='otimize meu uso';
       if (loading) loading.style.display='block';
       var t0=performance.now();
-      var fetchP=fetch('/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ user_input: question }) });
+      var fetchP=fetch('/api/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ user_input: question }) });
       typeText2(typing, 'Usuário: ' + question, 35)
         .then(function(){ return fetchP; })
         .then(function(res){ var s=res.status; return res.json().then(function(j){ return { status:s, json:j }; }); })
@@ -656,7 +656,7 @@
             renderStep2(steps,'M4 7h16M4 12h16M4 17h10','Workflow: Ativar modelo → Invocar ferramenta de otimização → Consolidar recomendações');
             renderStep2(steps,'M3 6h18','Extração de dados: estação Bauer (parâmetros SOC e P_meter)');
             renderStep2(steps,'M4 7h16M4 12h12','Normalização e análise: histórico de 7 dias com parâmetros reais minuto a minuto');
-            renderStep2(steps,'M2 12h20','Endpoint chamado: /chat (POST)');
+            renderStep2(steps,'M2 12h20','Endpoint chamado: /api/chat (POST)');
             renderStep2(steps,'M6 12l4 4 8-8','Orquestração: call_geminiapi + usage_optimizer → recomendações úteis');
           }
           if (stats){ var n=document.createElement('div'); n.className='paragraph_small'; n.textContent='Status HTTP: '+p.status+' · Tempo de resposta: '+latency+' ms'; stats.appendChild(n); }
@@ -714,7 +714,7 @@
       var question='teve algum alerta na minha rede no ultimo mês?';
       if (loading) loading.style.display='block';
       var t0=performance.now();
-      var fetchP=fetch('/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ user_input: question }) });
+      var fetchP=fetch('/api/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ user_input: question }) });
       typeText3(typing, 'Usuário: ' + question, 35)
         .then(function(){ return fetchP; })
         .then(function(res){ var s=res.status; return res.json().then(function(j){ return { status:s, json:j }; }); })
@@ -730,7 +730,7 @@
 
           if (steps){
             renderStep3(steps,'M5 12h14M13 5l7 7-7 7','Entrada enviada: "'+question+'"');
-            renderStep3(steps,'M2 12h20','Endpoint: /chat (POST)');
+            renderStep3(steps,'M2 12h20','Endpoint: /api/chat (POST)');
             renderStep3(steps,'M3 6h18','Dados consultados: inversor da rede Bauer');
             renderStep3(steps,'M4 7h16M4 12h12','P_meter minuto a minuto e SOC minuto a minuto');
             renderStep3(steps,'M4 7h16M4 12h16M4 17h10','Análise estatística sobre médias e padrões (7 dias)');
@@ -756,7 +756,7 @@
       if (loading) loading.style.display='block';
       var followQ='me explique melhor esse primeiro erro';
       var t0=performance.now();
-      fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ user_input: followQ }) })
+      fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ user_input: followQ }) })
         .then(function(res){ var s=res.status; return res.json().then(function(j){ return { status:s, json:j }; }); })
         .then(function(p){
           var t1=performance.now(); var latency=Math.round(t1-t0);

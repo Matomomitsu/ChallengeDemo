@@ -1,9 +1,9 @@
-### Front-end guide: wire /chat for chat-content blocks (v2 standard)
+### Front-end guide: wire /api/chat for chat-content blocks (v2 standard)
 
-This guide documents the markup and JavaScript used to wire the website cards to the `/chat` endpoint. It captures the working implementation from `chat-content1` so you can replicate it for `chat-content2` and `chat-content3` quickly.
+This guide documents the markup and JavaScript used to wire the website cards to the `/api/chat` endpoint. It captures the working implementation from `chat-content1` so you can replicate it for `chat-content2` and `chat-content3` quickly.
 
 ## What the API expects/returns
-- **Endpoint**: `/chat`
+- **Endpoint**: `/api/chat`
 - **Method**: POST
 - **Request body**:
 ```json
@@ -100,7 +100,7 @@ Place near the end of the page (after elements exist). Fetch starts in parallel 
       answer.innerHTML='';
       if (loading) loading.style.display='block';
       var t0=performance.now();
-      var fetchP=fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ user_input: question }) });
+      var fetchP=fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ user_input: question }) });
       typeText(typing, question, 35)
         .then(function(){ return fetchP; })
         .then(function(res){ var s=res.status; return res.json().then(function(j){ return {status:s,json:j}; }); })
@@ -112,7 +112,7 @@ Place near the end of the page (after elements exist). Fetch starts in parallel 
           if (toggle) toggle.style.display='inline-flex';
           if (steps){
             renderStep(steps,'M5 12h14M13 5l7 7-7 7','Entrada enviada: "'+question+'"');
-            renderStep(steps,'M2 12h20','Endpoint: /chat (POST)');
+            renderStep(steps,'M2 12h20','Endpoint: /api/chat (POST)');
             renderStep(steps,'M6 12l4 4 8-8','Orquestração: call_geminiapi');
           }
           if (stats){ var n=document.createElement('div'); n.className='paragraph_small'; n.textContent='Status HTTP: '+p.status+' · Tempo de resposta: '+latency+' ms'; stats.appendChild(n); }
@@ -164,10 +164,7 @@ document.addEventListener('DOMContentLoaded', function(){
 - **Output style**: backend enforces plain text; front-end strips `**` if present.
 - **Metrics**: latency with `performance.now()`; status shown in explainer.
 - **Audit links**: Card 1 → SEMS; Card 2 → repository (`https://github.com/Matomomitsu/ChallengeDemo`).
-- **Security**: posts to `/chat` on same origin; configure CORS if using another host.
+- **Security**: posts to `/api/chat` on same origin; configure CORS if using another host.
 
 ## Reference
 - FlowKit framework reference for class naming and layout utilities: [Flowkit docs](https://developers.webflow.com/flowkit/getting-started/intro)
-
-
-
