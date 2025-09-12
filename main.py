@@ -46,6 +46,11 @@ app.include_router(alexa_router, prefix="/api")
 # Serve the WebDemo static site at /demo
 app.mount("/demo", StaticFiles(directory="WebDemo", html=True), name="demo")
 
+# Back-compat: expose chat endpoint at top-level /chat for WebDemo
+@app.post("/chat", response_model=endpoints.ChatResponse)
+async def chat_alias(request: endpoints.ChatRequest):
+    return await endpoints.chat_endpoint(request)
+
 if __name__ == "__main__":
     print("🚀 Starting FastAPI server...")
     uvicorn.run(app, host="0.0.0.0", port=8001)
