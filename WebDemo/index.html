@@ -752,22 +752,21 @@
                 <div class="charging-mode-card">
                   <div class="charging-mode-header">
                     Charging Mode
-                    <span class="charging-mode-tooltip" title="Selecione o modo de carregamento">?</span>
                   </div>
-                  <div class="charging-mode-btn-group">
-                    <button class="charging-mode-btn active">
-                      <img src="images/plug.png" alt="Fast" />
-                      <span>Fast</span>
-                    </button>
-                    <button class="charging-mode-btn">
-                      <img src="images/pv.png" alt="PV Priority" />
-                      <span>PV Priority</span>
-                    </button>
-                    <button class="charging-mode-btn">
-                      <img src="images/pv-battery.png" alt="PV+Battery" />
-                      <span>PV+Battery</span>
-                    </button>
-                  </div>
+                    <div class="charging-mode-btn-group">
+                      <span class="charging-mode-btn active">
+                        <img src="images/plug.png" alt="Fast" />
+                        <span>Fast</span>
+                      </span>
+                      <span class="charging-mode-btn">
+                        <img src="images/pv.png" alt="PV Priority" />
+                        <span>PV Priority</span>
+                      </span>
+                      <span class="charging-mode-btn">
+                        <img src="images/pv-battery.png" alt="PV+Battery" />
+                        <span>PV+Battery</span>
+                      </span>
+                    </div>
                 </div>
               </div>
             </div>
@@ -1749,6 +1748,167 @@
             });
         });
       })();
+    </script>
+    <script type="text/javascript">
+    (function () {
+      function typeText4(el, text, speed) {
+        return new Promise(function (resolve) {
+          var i = 0;
+          el.textContent = "";
+          var t = setInterval(function () {
+            el.textContent += text.charAt(i++);
+            if (i >= text.length) {
+              clearInterval(t);
+              resolve();
+            }
+          }, speed);
+        });
+      }
+
+      function ensureCard4Fits() {
+        /* no-op after alignment to card1 layout */
+      }
+
+      function renderStep4(container, iconPathD, text) {
+        var row = document.createElement("div");
+        row.className = "flex_horizontal gap-xxsmall";
+        row.innerHTML =
+          '<div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="' +
+          iconPathD +
+          '" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>' +
+          '<div class="paragraph_small">' +
+          text +
+          "</div>";
+        container.appendChild(row);
+        ensureCard4Fits();
+      }
+
+      function toggleExplain4() {
+        var panel = document.getElementById("explain-panel-4");
+        if (panel)
+          panel.style.display =
+            panel.style.display === "none" ? "block" : "none";
+        ensureCard4Fits();
+      }
+
+       function onTestarFuncao4(e) {
+         e.preventDefault();
+         var typing = document.getElementById("chat-typing-4");
+         var loading = document.getElementById("chat-loading-4");
+         var answer = document.getElementById("chat-response-4");
+         var steps = document.getElementById("explain-steps-4");
+         var stats = document.getElementById("explain-stats-4");
+         var toggle = document.getElementById("toggle-explain-4");
+         if (!typing || !answer) return;
+         if (steps) steps.innerHTML = "";
+         if (stats) stats.innerHTML = "";
+         answer.innerHTML = "";
+
+        var charging_mode = window.charging_mode;
+
+         var question;
+         var new_mode;
+         if (charging_mode === 1) {
+           question = "Altere o modo de carregamento do meu EV charger para Pv Priority";
+           new_mode = 2;
+         } else {
+           question = "Altere o modo de carregamento do meu EV charger para Rápido";
+           new_mode = 1;
+         }
+
+         if (loading) loading.style.display = "block";
+         var t0 = performance.now();
+         var fetchP = fetch("/api/chat", {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ user_input: question }),
+         });
+         typeText4(typing, "Usuário: " + question, 35)
+           .then(function () {
+             return fetchP;
+           })
+           .then(function (res) {
+             var s = res.status;
+             return res.json().then(function (j) {
+               return { status: s, json: j };
+             });
+           })
+           .then(function (p) {
+             var t1 = performance.now();
+             var latency = Math.round(t1 - t0);
+             if (loading) loading.style.display = "none";
+             var raw =
+               (p.json && (p.json.response || p.json.message)) ||
+               "Sem resposta.";
+             var cleaned = String(raw).replace(/\*\*/g, "");
+             answer.textContent = "Assistente: " + cleaned;
+             if (!answer.classList.contains("chat-bubble")) {
+               answer.classList.add(
+                 "chat-bubble",
+                 "chat-assistant",
+                 "chat-scroll",
+                 "typography-readable"
+               );
+             }
+             if (toggle) toggle.style.display = "inline-flex";
+             ensureCard4Fits();
+
+             // Atualiza visualmente o modo ativo
+             setActiveChargingMode(new_mode);
+
+             if (steps) {
+               // ... renderização dos passos ...
+             }
+             if (stats) {
+               var n = document.createElement("div");
+               n.className = "paragraph_small";
+               n.textContent =
+                 "Status HTTP: " +
+                 p.status +
+                 " · Tempo de resposta: " +
+                 latency +
+                 " ms";
+               stats.appendChild(n);
+             }
+             // Atualiza variável global se necessário
+             window.charging_mode = new_mode;
+           })
+           .catch(function (err) {
+             typing.textContent = "";
+             if (loading) loading.style.display = "none";
+             answer.textContent = "Erro ao consultar a API.";
+             console.error(err);
+           });
+       }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        var btn4 = document.getElementById("testar-funcao-4");
+        var toggle4 = document.getElementById("toggle-explain-4");
+        if (btn4) btn4.addEventListener("click", onTestarFuncao4);
+        if (toggle4)
+          toggle4.addEventListener("click", function (e) {
+            e.preventDefault();
+            toggleExplain4();
+          });
+        // no extra height management needed following card1 pattern
+      });
+
+      // Supondo que charging_mode seja o valor retornado da API
+      function setActiveChargingMode(charging_mode) {
+        document.querySelectorAll('.charging-mode-btn').forEach(function(btn, idx) {
+          btn.classList.remove('active');
+          // idx+1 corresponde ao modo 1, 2, 3 na ordem dos botões
+          if (idx + 1 === charging_mode) {
+            btn.classList.add('active');
+          }
+        });
+      }
+
+      // Exemplo de uso após receber o retorno da API:
+      fetch('/api/EvCharger/ChargingMode')
+        .then(res => res.json())
+        .then(data => setActiveChargingMode(data.charging_mode));
+    })();
     </script>
     <script type="text/javascript">
       (function () {

@@ -285,14 +285,14 @@ def create_function_declarations():
             properties={
                 "powerstation_id": types.Schema(
                     type=types.Type.STRING,
-                    description="O ID da estação de energia associada ao EV Charger."
+                    description="O ID da estação de energia associada ao EV Charger. Se ausente, usar planta padrão."
                 ),
-                "charging_mode": types.Schema(
+                "charge_mode": types.Schema(
                     type=types.Type.INTEGER,
-                    description="Novo modo de carregamento (ex: 1=ativo, 0=inativo, etc)."
+                    description="Charge_mode 1 - Fast (Rapido), 2 - PV Priority, 3 - PV & Battery."
                 )
             },
-            required=["powerstation_id", "charging_mode"]
+            required=["charge_mode"]
         )
     )
     functions.append(change_ev_charger_status)

@@ -536,6 +536,8 @@ class GoodweApi:
         Returns income and powerstation info for the given Year.
         """
 
+        if powerstation_id is None or powerstation_id.strip() == "":
+            powerstation_id = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
         conn = sqlite3.connect('./data/sqlite.db')
         cursor = conn.cursor()
 
@@ -563,7 +565,7 @@ class GoodweApi:
             charge_mode: int
     ) -> dict:
         """
-        Altera o charging_mode do ev_charger para o powerstation_id informado.
+        Altera o charge_mode do ev_charger para o powerstation_id informado.
         """
         token = self.GetToken()
         if not token:
