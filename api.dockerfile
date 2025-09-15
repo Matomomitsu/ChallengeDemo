@@ -14,6 +14,7 @@ COPY ./main.py ./main.py
 COPY ./system_prompt.txt ./system_prompt.txt
 COPY ./translations_normalized.json ./translations_normalized.json
 COPY ./WebDemo ./WebDemo
+COPY ./data ./data
 
 # Expose FastAPI port
 EXPOSE 8001
