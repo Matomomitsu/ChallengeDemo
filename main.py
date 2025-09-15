@@ -6,9 +6,12 @@ import os
 from api import endpoints
 from core.alexa import router as alexa_router
 from core import goodweApi
+from core import sqlite
 
 # Load environment variables
 load_dotenv()
+
+sqlite.start_sqlite()
 
 # Check if API key is loaded
 api_key = os.getenv("GEMINI_API_KEY")

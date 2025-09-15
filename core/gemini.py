@@ -262,6 +262,41 @@ def create_function_declarations():
     )
     functions.append(get_powerstation_power_and_income_by_year)
 
+    get_ev_charger_status = types.FunctionDeclaration(
+        name="get_ev_charger_status",
+        description="Retorna o status do carregador de veículo elétrico (EV Charger) para um powerstation_id. Charge Mode 1 = Fast, 2 = PV Priority, 3 = PV & Battery",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "powerstation_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="O ID da estação de energia associada ao EV Charger. Se ausente, usar planta padrão."
+                )
+            }
+        )
+    )
+    functions.append(get_ev_charger_status)
+
+    change_ev_charger_status = types.FunctionDeclaration(
+        name="change_ev_charger_status",
+        description="Altera o modo de carregamento do EV Charger para um powerstation_id.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "powerstation_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="O ID da estação de energia associada ao EV Charger. Se ausente, usar planta padrão."
+                ),
+                "charge_mode": types.Schema(
+                    type=types.Type.INTEGER,
+                    description="Charge_mode 1 - Fast (Rapido), 2 - PV Priority, 3 - PV & Battery."
+                )
+            },
+            required=["charge_mode"]
+        )
+    )
+    functions.append(change_ev_charger_status)
+
 
     # Usage optimization (statistical summary for recommendations)
     optimize_usage = types.FunctionDeclaration(
@@ -296,7 +331,7 @@ def initialize_chat():
 
         # Create the chat with tools and system instruction
         chat_instance = client.chats.create(
-            model="gemini-2.5-flash-preview-05-20",
+            model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 tools=[types.Tool(function_declarations=function_declarations)]
@@ -342,6 +377,8 @@ def execute_function_call(function_call):
         "get_powerstation_power_and_income_by_month": goodwe_api_instance.GetPowerAndIncomeByMonth,
         "get_powerstation_power_and_income_by_year": goodwe_api_instance.GetPowerAndIncomeByYear,
         "optimize_usage": usage_optimizer.optimize_usage,
+        "get_ev_charger_status": goodwe_api_instance.GetEvChargerChargingMode,
+        "change_ev_charger_status": goodwe_api_instance.ChangeEvChargerChargingMode,
     }
 
     function_name = function_call.name
@@ -356,6 +393,10 @@ def execute_function_call(function_call):
             if function_name == "get_powerstation_battery_status" and not function_args.get("powerstation_id"):
                 function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
             if function_name.startswith("get_powerstation_power_and_income_by_") and not function_args.get("powerstation_id"):
+                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
+            if function_name.startswith("get_ev_charger") and not function_args.get("powerstation_id"):
+                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
+            if function_name.startswith("change_ev_charger") and not function_args.get("powerstation_id"):
                 function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
             result = function_map[function_name](**function_args)
 

@@ -45,6 +45,24 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
 
+@router.get("/EvCharger/ChargingMode")
+async def get_ev_charger_charge_mode():
+    """
+    🚗 EV Charger Status
+
+    Returns the current status of the connected EV charger, including:
+    - Charging state (charging, idle, error)
+    - Current power draw (kW)
+    - Total energy delivered (kWh)
+    - Estimated time to full charge
+    """
+    try:
+        # Placeholder implementation - replace with actual EV charger API calls
+        goodwe_api = GoodweApi()
+        ev_status = goodwe_api.GetEvChargerChargingMode(None)
+        return ev_status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching EV charger status: {str(e)}")
 
 # Removed CSV-based solar endpoints: /solar/query and /solar/stats
 

@@ -9,7 +9,8 @@ from datetime import datetime, date, timedelta
 from collections import defaultdict
 from core.cacheServices import CacheServices
 from dotenv import load_dotenv
-
+import sqlite3
+import uuid
 
 class GoodweApi:
     _instance = None
@@ -525,3 +526,64 @@ class GoodweApi:
         else:
             print(f"Failed to retrieve income data with status code: {response.status_code}")
             return {"hasError": True, "code": response.status_code, "msg": response.text}
+
+
+    def GetEvChargerChargingMode(
+            self,
+            powerstation_id: str,
+    ) -> dict:
+        """
+        Returns income and powerstation info for the given Year.
+        """
+
+        if powerstation_id is None or powerstation_id.strip() == "":
+            powerstation_id = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
+        conn = sqlite3.connect('./data/sqlite.db')
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT id, powerstation_id, charging_mode FROM ev_charger WHERE powerstation_id = ?",
+            (powerstation_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            result = {"id": row[0], "powerstation_id": row[1], "charging_mode": row[2]}
+        else:
+            new_id = str(uuid.uuid4())
+            cursor.execute(
+                "INSERT INTO ev_charger (id, powerstation_id, charging_mode) VALUES (?, ?, ?)",
+                (new_id, powerstation_id, 1)
+            )
+            conn.commit()
+            result = {"id": new_id, "powerstation_id": powerstation_id, "charging_mode": 1}
+        conn.close()
+        return result
+
+    def ChangeEvChargerChargingMode(
+            self,
+            powerstation_id: str,
+            charge_mode: int
+    ) -> dict:
+        """
+        Altera o charge_mode do ev_charger para o powerstation_id informado.
+        """
+        token = self.GetToken()
+        if not token:
+            return {"hasError": True, "msg": "No token"}
+
+        conn = sqlite3.connect('./data/sqlite.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE ev_charger SET charging_mode = ? WHERE powerstation_id = ?",
+            (charge_mode, powerstation_id)
+        )
+        conn.commit()
+        updated = cursor.rowcount
+        conn.close()
+
+        if updated:
+            return {"hasError": False, "msg": "Charging mode atualizado com sucesso"}
+        else:
+            return {"hasError": True, "msg": "Powerstation não encontrado"}
+
+

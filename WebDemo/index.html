@@ -712,7 +712,67 @@
               </div>
             </div>
           </div>
+          <div class="ix_sticky-card is-card-4">
+          <div class="card card_body margin-top_large backdrop-filter_blur on-secondary">
+            <div class="w-layout-grid grid_2-col tablet-1-col gap-xxlarge">
+              <section class="image-ratio_2x3 ratio_1x1_mobile-l" id="chat-content4">
+                <div class="card card_body shadow_medium">
+                  <div class="flex_vertical gap-small">
+                    <div class="eyebrow">Assistente</div>
+                    <div id="chat-typing-4" class="paragraph_large chat-bubble chat-user" aria-live="polite"></div>
+                    <div id="chat-loading-4" class="paragraph_small text-color_secondary" style="display:none;">Consultando API…</div>
+                    <div id="chat-response-4" class="rich-text paragraph_large chat-bubble chat-assistant chat-scroll typography-readable"></div>
+                    <div class="divider"></div>
+                  </div>
+                </div>
+              </section>
+              <div class="header w-node-_98a2e1ae-ffef-5e2b-abb1-5ec42a5f97d4-08b23417">
+                <div>
+                  <a href="#" id="toggle-explain-4" class="text-button w-inline-block">
+                    <div>Entenda como essa resposta foi gerada</div>
+                  </a>
+                  <div id="explain-panel-4" style="display: none;" class="margin-top_xsmall">
+                    <div id="explain-steps-4" class="flex_vertical gap-xsmall"></div>
+                    <div class="divider margin-top_xsmall"></div>
+                    <div id="explain-stats-4" class="flex_vertical gap-xxsmall"></div>
+                    <div class="margin-top_xsmall">
+                      <a class="button is-secondary w-button" href="https://www.semsportal.com/powerstation/runmaintenance" target="_blank" rel="noopener">Audite essa resposta</a>
+                    </div>
+                  </div>
+                </div>
+                <h2>Controle o seu EV Charger</h2>
+                <p class="subheading">Escolha o momento ideal para cada tipo de carregamento e tenha autonomia total sobre o seu carregador veicular.</p>
+                <div class="button-group">
+                  <a href="#" id="testar-funcao-4" class="button w-button">Testar função</a>
+                </div>
+                <div class="evcharger-illustration">
+                  <img src="images/charger.png" alt="Charger" class="charger-img" />
+                  <img src="images/car.png" alt="Car" class="car-img" />
+                </div>
+                <div class="charging-mode-card">
+                  <div class="charging-mode-header">
+                    Charging Mode
+                  </div>
+                    <div class="charging-mode-btn-group">
+                      <span class="charging-mode-btn active">
+                        <img src="images/plug.png" alt="Fast" />
+                        <span>Fast</span>
+                      </span>
+                      <span class="charging-mode-btn">
+                        <img src="images/pv.png" alt="PV Priority" />
+                        <span>PV Priority</span>
+                      </span>
+                      <span class="charging-mode-btn">
+                        <img src="images/pv-battery.png" alt="PV+Battery" />
+                        <span>PV+Battery</span>
+                      </span>
+                    </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -921,7 +981,7 @@
                 <div class="paragraph_large">
                   Contato por e-mail: <a href="mailto:fiapchallengehhrmt@gmail.com">fiapchallengehhrmt@gmail.com</a>
                 </div>
-    
+
           </div>
         </div>
       </div>
@@ -1012,7 +1072,7 @@
             ".card.card_body.margin-top_large.on-secondary"
           );
           var cliSection = document.getElementById("demo-cli-section");
-          
+
           // Generic smooth scroll for in-page anchors
           var internalLinks = document.querySelectorAll('a[href^="#"]');
           internalLinks.forEach(function (link) {
@@ -1688,6 +1748,167 @@
             });
         });
       })();
+    </script>
+    <script type="text/javascript">
+    (function () {
+      function typeText4(el, text, speed) {
+        return new Promise(function (resolve) {
+          var i = 0;
+          el.textContent = "";
+          var t = setInterval(function () {
+            el.textContent += text.charAt(i++);
+            if (i >= text.length) {
+              clearInterval(t);
+              resolve();
+            }
+          }, speed);
+        });
+      }
+
+      function ensureCard4Fits() {
+        /* no-op after alignment to card1 layout */
+      }
+
+      function renderStep4(container, iconPathD, text) {
+        var row = document.createElement("div");
+        row.className = "flex_horizontal gap-xxsmall";
+        row.innerHTML =
+          '<div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="' +
+          iconPathD +
+          '" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>' +
+          '<div class="paragraph_small">' +
+          text +
+          "</div>";
+        container.appendChild(row);
+        ensureCard4Fits();
+      }
+
+      function toggleExplain4() {
+        var panel = document.getElementById("explain-panel-4");
+        if (panel)
+          panel.style.display =
+            panel.style.display === "none" ? "block" : "none";
+        ensureCard4Fits();
+      }
+
+       function onTestarFuncao4(e) {
+         e.preventDefault();
+         var typing = document.getElementById("chat-typing-4");
+         var loading = document.getElementById("chat-loading-4");
+         var answer = document.getElementById("chat-response-4");
+         var steps = document.getElementById("explain-steps-4");
+         var stats = document.getElementById("explain-stats-4");
+         var toggle = document.getElementById("toggle-explain-4");
+         if (!typing || !answer) return;
+         if (steps) steps.innerHTML = "";
+         if (stats) stats.innerHTML = "";
+         answer.innerHTML = "";
+
+        var charging_mode = window.charging_mode;
+
+         var question;
+         var new_mode;
+         if (charging_mode === 1) {
+           question = "Altere o modo de carregamento do meu EV charger para Pv Priority";
+           new_mode = 2;
+         } else {
+           question = "Altere o modo de carregamento do meu EV charger para Rápido";
+           new_mode = 1;
+         }
+
+         if (loading) loading.style.display = "block";
+         var t0 = performance.now();
+         var fetchP = fetch("/api/chat", {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ user_input: question }),
+         });
+         typeText4(typing, "Usuário: " + question, 35)
+           .then(function () {
+             return fetchP;
+           })
+           .then(function (res) {
+             var s = res.status;
+             return res.json().then(function (j) {
+               return { status: s, json: j };
+             });
+           })
+           .then(function (p) {
+             var t1 = performance.now();
+             var latency = Math.round(t1 - t0);
+             if (loading) loading.style.display = "none";
+             var raw =
+               (p.json && (p.json.response || p.json.message)) ||
+               "Sem resposta.";
+             var cleaned = String(raw).replace(/\*\*/g, "");
+             answer.textContent = "Assistente: " + cleaned;
+             if (!answer.classList.contains("chat-bubble")) {
+               answer.classList.add(
+                 "chat-bubble",
+                 "chat-assistant",
+                 "chat-scroll",
+                 "typography-readable"
+               );
+             }
+             if (toggle) toggle.style.display = "inline-flex";
+             ensureCard4Fits();
+
+             // Atualiza visualmente o modo ativo
+             setActiveChargingMode(new_mode);
+
+             if (steps) {
+               // ... renderização dos passos ...
+             }
+             if (stats) {
+               var n = document.createElement("div");
+               n.className = "paragraph_small";
+               n.textContent =
+                 "Status HTTP: " +
+                 p.status +
+                 " · Tempo de resposta: " +
+                 latency +
+                 " ms";
+               stats.appendChild(n);
+             }
+             // Atualiza variável global se necessário
+             window.charging_mode = new_mode;
+           })
+           .catch(function (err) {
+             typing.textContent = "";
+             if (loading) loading.style.display = "none";
+             answer.textContent = "Erro ao consultar a API.";
+             console.error(err);
+           });
+       }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        var btn4 = document.getElementById("testar-funcao-4");
+        var toggle4 = document.getElementById("toggle-explain-4");
+        if (btn4) btn4.addEventListener("click", onTestarFuncao4);
+        if (toggle4)
+          toggle4.addEventListener("click", function (e) {
+            e.preventDefault();
+            toggleExplain4();
+          });
+        // no extra height management needed following card1 pattern
+      });
+
+      // Supondo que charging_mode seja o valor retornado da API
+      function setActiveChargingMode(charging_mode) {
+        document.querySelectorAll('.charging-mode-btn').forEach(function(btn, idx) {
+          btn.classList.remove('active');
+          // idx+1 corresponde ao modo 1, 2, 3 na ordem dos botões
+          if (idx + 1 === charging_mode) {
+            btn.classList.add('active');
+          }
+        });
+      }
+
+      // Exemplo de uso após receber o retorno da API:
+      fetch('/api/EvCharger/ChargingMode')
+        .then(res => res.json())
+        .then(data => setActiveChargingMode(data.charging_mode));
+    })();
     </script>
     <script type="text/javascript">
       (function () {
