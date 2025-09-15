@@ -1,0 +1,31 @@
+.alexa-integration-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr;
+  gap: 60px;
+  align-items: start;
+}
+
+.alexa-left {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.alexa-right video {
+  width: 1000px;
+  max-height: 1500px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+@media (max-width: 991px) {
+  .alexa-integration-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .alexa-right {
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
