@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+# Frontend dependencies and build
+frontend/node_modules/
+frontend/public/
