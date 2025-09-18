@@ -41,6 +41,18 @@ python main.py
 - Documentação: `http://localhost:8001/docs`
 - Web Demo: `http://localhost:8001/demo`
 
+### Frontend (Web Demo)
+
+O projeto Eleventy/Node agora fica em `frontend/`.
+
+```bash
+cd frontend
+npm install      # primeira vez ou após atualizar dependências
+npm run build    # gera frontend em frontend/public
+```
+
+O FastAPI serve diretamente `frontend/public`, então basta reconstruir antes de reiniciar a API quando fizer ajustes na interface.
+
 **Interface CLI:**
 ```bash
 python cli.py
@@ -95,7 +107,3 @@ DEFAULT_POWERSTATION_NAME=Bauer
 # Opcional: defina diretamente o ID
 # DEFAULT_POWERSTATION_ID=6ef62eb2-7959-4c49-ad0a-0ce75565023a
 ```
-
-Personalização:
-- Edite `system_prompt.txt` para ajustar o comportamento da IA
-- Configure as variáveis de ambiente conforme necessário
