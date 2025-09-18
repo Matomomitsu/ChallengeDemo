@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from fastapi import Request
 import os
 
@@ -12,11 +12,31 @@ router = APIRouter()
 api_key = os.getenv("GEMINI_API_KEY")
 
 # Main chat endpoint (maintains conversation context)
+class FunctionPreview(BaseModel):
+    name: str
+    args: Dict[str, Any]
+    result: Any
+
+
 class ChatResponse(BaseModel):
     response: str
+    functions_preview: Optional[List[FunctionPreview]] = None
+    fallback_to_default: Optional[bool] = False
+    used_powerstation_id: Optional[str] = None
+
 
 class ChatRequest(BaseModel):
     user_input: str
+    plant_id: Optional[str] = None
+
+
+class PlantInfo(BaseModel):
+    id: str
+    name: str
+
+
+class PlantListResponse(BaseModel):
+    plants: List[PlantInfo]
 
 # (removed) CSV-based solar query request schema
 
@@ -39,10 +59,30 @@ async def chat_endpoint(request: ChatRequest):
     Example: "How much solar energy did I generate yesterday?"
     """
     try:
-        response = await call_geminiapi(request.user_input)
-        return ChatResponse(response=response)
+        result = await call_geminiapi(request.user_input, powerstation_id=request.plant_id)
+        return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+
+
+@router.get("/plants", response_model=PlantListResponse)
+async def list_plants():
+    """Return available plants/power stations for selection in the UI."""
+    try:
+        payload = goodwe_api.ListPlants() or {}
+        raw_list = payload.get("plants", []) if isinstance(payload, dict) else []
+        plants = [
+            PlantInfo(id=item.get("powerstation_id"), name=item.get("stationname") or "")
+            for item in raw_list
+            if item.get("powerstation_id") and (item.get("stationname") or "").strip()
+        ]
+        if not plants:
+            raise HTTPException(status_code=404, detail="No plants available for the configured account")
+        return PlantListResponse(plants=plants)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching plant list: {str(e)}")
 
 
 @router.get("/EvCharger/ChargingMode")

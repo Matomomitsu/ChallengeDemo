@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+from pathlib import Path
 import uvicorn
 import os
 from api import endpoints
@@ -37,6 +38,9 @@ else:
     print("❌ GOODWE_PASSWORD not found!")
     print("Make sure you have a .env file with GOODWE_PASSWORD=your_password")
 
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend" / "public"
+
 app = FastAPI(
     title="BotSolar API",
     description="Comprehensive API for solar generation queries and battery management",
@@ -46,10 +50,10 @@ app = FastAPI(
 app.include_router(endpoints.router, prefix="/api")
 app.include_router(alexa_router, prefix="/api")
 
-# Serve the WebDemo static site at /demo
-app.mount("/demo", StaticFiles(directory="WebDemo", html=True), name="demo")
+# Serve the generated Eleventy site at /demo
+app.mount("/demo", StaticFiles(directory=FRONTEND_DIR, html=True), name="demo")
 
-# Back-compat: expose chat endpoint at top-level /chat for WebDemo
+# Back-compat: expose chat endpoint at top-level /chat for legacy front-end
 @app.post("/chat", response_model=endpoints.ChatResponse)
 async def chat_alias(request: endpoints.ChatRequest):
     return await endpoints.chat_endpoint(request)

@@ -24,8 +24,22 @@ def chat_interface():
                 print("🤖 BotSolar: Adeus!")
                 break
             
-            response = asyncio.run(call_geminiapi(user_input))
-            print(f"🤖 BotSolar: {response}\n")
+            result = asyncio.run(call_geminiapi(user_input))
+            if isinstance(result, dict):
+                response_text = result.get("response", "")
+                print(f"🤖 BotSolar: {response_text}\n")
+                functions_preview = result.get("functions_preview") or []
+                if functions_preview:
+                    print("🔍 Funções executadas:")
+                    print(json.dumps(functions_preview, ensure_ascii=False, indent=2))
+                    print()
+                used_station = result.get("used_powerstation_id")
+                if result.get("fallback_to_default") and used_station:
+                    print(
+                        f"⚠️  Sem dados para o powerstation_id {used_station}. Voltando à planta Bauer.\n"
+                    )
+            else:
+                print(f"🤖 BotSolar: {result}\n")
             
         except KeyboardInterrupt:
             print("\n🤖 BotSolar: Adeus!")
