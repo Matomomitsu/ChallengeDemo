@@ -1,6 +1,9 @@
 from google import genai
 from google.genai import types
+import json
 import os
+from typing import Any, Dict, Optional
+
 import core.goodweApi as goodweApi
 from core import usage_optimizer
 from datetime import datetime
@@ -366,7 +369,20 @@ def get_alarms_flat(**kwargs):
             args["status"] = "3"  # all statuses for ranges/past
     return goodwe_api_instance.GetAlarmsByRange(**args)
 
-def execute_function_call(function_call):
+def _json_safe(value: Any) -> Any:
+    """Ensure values are JSON-serialisable for previews."""
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except TypeError:
+        if isinstance(value, dict):
+            return {k: _json_safe(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [_json_safe(v) for v in value]
+        return str(value)
+
+
+def execute_function_call(function_call, *, powerstation_override: Optional[str] = None):
     """Execute the appropriate function based on the function call"""
     function_map = {
         "list_plants": goodwe_api_instance.ListPlants,
@@ -381,79 +397,162 @@ def execute_function_call(function_call):
         "change_ev_charger_status": goodwe_api_instance.ChangeEvChargerChargingMode,
     }
 
+    needs_powerstation = {
+        "get_powerstation_battery_status",
+        "get_powerstation_power_and_income_by_day",
+        "get_powerstation_power_and_income_by_month",
+        "get_powerstation_power_and_income_by_year",
+        "get_ev_charger_status",
+        "change_ev_charger_status",
+    }
+
     function_name = function_call.name
     print(function_call.args)
     function_args = dict(function_call.args) if function_call.args else {}
+    fallback_to_default = False
+    used_powerstation_id = function_args.get("powerstation_id")
 
     if function_name in function_map:
         try:
             # Apply helpers/defaults
             if function_name == "get_alarms_by_range":
                 function_args = _auto_date_range(function_args)
-            if function_name == "get_powerstation_battery_status" and not function_args.get("powerstation_id"):
-                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
-            if function_name.startswith("get_powerstation_power_and_income_by_") and not function_args.get("powerstation_id"):
-                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
-            if function_name.startswith("get_ev_charger") and not function_args.get("powerstation_id"):
-                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
-            if function_name.startswith("change_ev_charger") and not function_args.get("powerstation_id"):
-                function_args["powerstation_id"] = _get_default_powerstation_id(goodwe_api_instance)
+
+            if function_name in needs_powerstation:
+                if function_args.get("powerstation_id"):
+                    used_powerstation_id = function_args["powerstation_id"]
+                elif powerstation_override:
+                    function_args["powerstation_id"] = powerstation_override
+                    used_powerstation_id = powerstation_override
+                else:
+                    default_station = _get_default_powerstation_id(goodwe_api_instance)
+                    if default_station:
+                        function_args["powerstation_id"] = default_station
+                        used_powerstation_id = default_station
+
             result = function_map[function_name](**function_args)
+
+            preview_args = _json_safe(function_args)
+            preview_result = _json_safe(result)
 
             print(f"🔧 Function '{function_name}' called with args: {function_args}")
             print(f"📊 Result: {result}")
-            return result
+
+            meta = {
+                "fallback_to_default": fallback_to_default,
+                "used_powerstation_id": used_powerstation_id,
+                "args_preview": preview_args,
+                "result_preview": preview_result,
+            }
+            return result, preview_args, preview_result, meta
         except Exception as e:
             print(f"❌ Error executing function '{function_name}': {e}")
-            return {"error": str(e)}
+            error_payload = {"error": str(e)}
+            meta = {
+                "fallback_to_default": fallback_to_default,
+                "used_powerstation_id": used_powerstation_id,
+                "args_preview": _json_safe(function_args),
+                "result_preview": _json_safe(error_payload),
+            }
+            return error_payload, meta["args_preview"], meta["result_preview"], meta
     else:
         print(f"❌ Unknown function: {function_name}")
-        return {"error": f"Unknown function: {function_name}"}
+        error_payload = {"error": f"Unknown function: {function_name}"}
+        meta = {
+            "fallback_to_default": fallback_to_default,
+            "used_powerstation_id": used_powerstation_id,
+            "args_preview": _json_safe(function_args),
+            "result_preview": _json_safe(error_payload),
+        }
+        return error_payload, meta["args_preview"], meta["result_preview"], meta
 
-async def call_geminiapi(user_input: str):
+async def call_geminiapi(user_input: str, *, powerstation_id: Optional[str] = None) -> Dict[str, Any]:
     """Main API function for processing user input"""
     global chat_instance
 
     if chat_instance is None:
         if not initialize_chat():
-            return "❌ Error: Could not initialize the chat system."
+            return {
+                "response": "❌ Error: Could not initialize the chat system.",
+                "functions_preview": [],
+                "fallback_to_default": False,
+                "used_powerstation_id": powerstation_id,
+            }
 
     try:
         response = chat_instance.send_message(message=user_input)
         function_executed = False
+        executed_functions = []
+        final_answer_chunks = []
+        used_powerstation_id = powerstation_id
+        fallback_to_default = False
 
         while True:
             function_response_parts = []
             has_function_call = False
 
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0] if getattr(response, "candidates", None) else None
+            if hasattr(response, "candidates") and response.candidates:
+                candidate = response.candidates[0]
                 content = getattr(candidate, "content", None)
                 parts = getattr(content, "parts", []) if content else []
 
                 for part in parts:
                     if hasattr(part, "function_call") and part.function_call:
-                        result = execute_function_call(part.function_call)
+                        (
+                            result,
+                            preview_args,
+                            preview_result,
+                            meta,
+                        ) = execute_function_call(part.function_call, powerstation_override=powerstation_id)
                         function_response_part = types.Part.from_function_response(
                             name=part.function_call.name,
-                            response=result
+                            response=result,
                         )
                         function_response_parts.append(function_response_part)
+                        executed_functions.append(
+                            {
+                                "name": part.function_call.name,
+                                "args": preview_args,
+                                "result": preview_result,
+                            }
+                        )
+                        if meta.get("used_powerstation_id"):
+                            used_powerstation_id = meta.get("used_powerstation_id")
+                        if meta.get("fallback_to_default"):
+                            fallback_to_default = True
                         function_executed = True
                         has_function_call = True
                     elif hasattr(part, "text") and part.text:
-                        print(part.text)
-                        return part.text
-
+                        final_answer_chunks.append(part.text)
 
             if has_function_call and function_response_parts:
                 response = chat_instance.send_message(message=function_response_parts)
             else:
                 break
 
-        if function_executed:
-            return response.text if response.text else "Funções executadas com sucesso."
-        return response.text if response.text else "Processamento concluído, mas sem resposta textual."
+        response_text = getattr(response, "text", "") or ""
+        final_answer = "\n".join(chunk.strip() for chunk in final_answer_chunks if chunk).strip()
+        if not final_answer:
+            final_answer = response_text.strip()
+        elif response_text.strip() and response_text.strip() not in {
+            chunk.strip() for chunk in final_answer_chunks if chunk
+        }:
+            final_answer = "\n".join(filter(None, [final_answer, response_text.strip()]))
+
+        if not final_answer:
+            final_answer = "Funções executadas com sucesso." if function_executed else "Processamento concluído, mas sem resposta textual."
+
+        return {
+            "response": final_answer,
+            "functions_preview": executed_functions,
+            "fallback_to_default": fallback_to_default,
+            "used_powerstation_id": used_powerstation_id,
+        }
     except Exception as e:
         print(f"❌ Error in call_geminiapi: {e}")
-        return f"❌ Error processing your request: {str(e)}"
+        return {
+            "response": f"❌ Error processing your request: {str(e)}",
+            "functions_preview": [],
+            "fallback_to_default": False,
+            "used_powerstation_id": powerstation_id,
+        }
