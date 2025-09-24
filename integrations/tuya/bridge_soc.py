@@ -20,6 +20,17 @@ load_dotenv()
 LOGGER = logging.getLogger(__name__)
 MAX_JITTER_SECONDS = 5
 
+# Mapping between logical telemetry keys and Tuya DP identifiers configured in the cloud
+TUYA_PROPERTY_IDENTIFIERS = {
+    "battery_soc": "Bateria",
+    "status": "status",
+    "load_w": "Consumo_Residencial",
+    "pv_power_w": "Producao_Solar_Atual",
+    "inverter_eday_kwh": "Energia_Hoje",
+    "inverter_emonth_kwh": "Energia_Este_Mes",
+    "kpi_day_income_usd": "Receita_Hoje",
+}
+
 
 def _setup_logging() -> None:
     log_level = os.getenv("TUYA_SOC_LOG_LEVEL", "INFO").upper()
@@ -172,8 +183,8 @@ def main() -> None:
                     if soc_value is None:
                         LOGGER.warning("Missing or invalid SOC 'power' value in response: %s", entry)
                     else:
-                        properties["battery_soc"] = soc_value
-                        properties["status"] = status_value
+                        properties[TUYA_PROPERTY_IDENTIFIERS["battery_soc"]] = soc_value
+                        properties[TUYA_PROPERTY_IDENTIFIERS["status"]] = status_value
 
                 summary = api.GetMonitorSummaryByPowerstationId(powerstation_id)
                 summary_data = (
@@ -190,15 +201,15 @@ def main() -> None:
                     day_income = _coerce_integer_metric(summary_data.get("day_income"))
 
                     if load_w is not None:
-                        properties["load_w"] = load_w
+                        properties[TUYA_PROPERTY_IDENTIFIERS["load_w"]] = load_w
                     if pv_w is not None:
-                        properties["pv_power_w"] = pv_w
+                        properties[TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]] = pv_w
                     if eday is not None:
-                        properties["inverter_eday_kwh"] = eday
+                        properties[TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]] = eday
                     if emonth is not None:
-                        properties["inverter_emonth_kwh"] = emonth
+                        properties[TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]] = emonth
                     if day_income is not None:
-                        properties["kpi_day_income_usd"] = day_income
+                        properties[TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]] = day_income
                 elif isinstance(summary, dict) and summary.get("hasError"):
                     LOGGER.warning(
                         "Failed to fetch GoodWe monitor summary for plant %s: %s",
