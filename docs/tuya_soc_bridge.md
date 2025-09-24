@@ -1,8 +1,10 @@
 # GoodWe → Tuya SOC Bridge
 
+
+
 ## What it does
-- Polls GoodWe SOC telemetry via the existing `GoodweApi` every 60 seconds (configurable) with ±5 s jitter.
-- Maps the GoodWe payload (`power`, `status`) to TuyaLink custom properties (`battery_soc`, `status`).
+- Polls GoodWe telemetry via `GoodweApi` every 60 seconds (configurable) with ±5 s jitter.
+- Maps SOC/status plus inverter KPIs (`load_w`, `pv_power_w`, `inverter_eday_kwh`, `inverter_emonth_kwh`, `kpi_day_income_usd`).
 - Publishes the mapped telemetry to TuyaLink MQTT over TLS using device credentials, or prints the payload when Tuya credentials are absent (dry-run).
 
 ## Configuration
@@ -36,22 +38,16 @@ TuyaLink expects property reports to wrap each DP inside a `data` object with in
   "time": 1695391039412,
   "data": {
     "battery_soc": {"value": 62},
-    "status": {"value": "charging"}
+    "status": {"value": "charging"},
+    "load_w": {"value": 412},
+    "pv_power_w": {"value": 1234},
+    "inverter_eday_kwh": {"value": 28},
+    "inverter_emonth_kwh": {"value": 618},
+    "kpi_day_income_usd": {"value": 7}
   }
 }
 ```
 
 If the `data` wrapper or `value` keys are omitted (e.g., sending `{"properties": {"battery_soc": 62}}`), Tuya silently discards the report even though the device shows as online. Keep this structure when extending the bridge with new telemetry points.
 
-## Test evidence
-```
-$ TUYA_SOC_POLL_INTERVAL=10 timeout 30s python3 -m integrations.tuya.bridge_soc
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/mnt/c/Users/Henrique/Desktop/ChallengeDemo/integrations/tuya/bridge_soc.py", line 11, in <module>
-    from dotenv import load_dotenv
-ModuleNotFoundError: No module named 'dotenv'
-```
 
-> The runtime environment provided by the harness is missing `python-dotenv`. After installing dependencies (`pip install -r requirements.txt`), rerun the command to perform a full dry-run or live test as described above.

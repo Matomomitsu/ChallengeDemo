@@ -189,6 +189,116 @@ class GoodweApi:
 
             return None
 
+    def GetMonitorSummaryByPowerstationId(self, powerstation_id: str = None, event_time: datetime = None):
+        """Return a minimal telemetry snapshot (day/month totals, SOC, load, etc.)."""
+        token = self.GetToken()
+        if not token:
+            return {"hasError": True, "msg": "No token"}
+
+        if not powerstation_id:
+            powerstation_id = (
+                os.getenv("GOODWE_POWERSTATION_ID")
+                or os.getenv("DEFAULT_POWERSTATION_ID")
+                or os.getenv("DEFAULT_POWERSTATION")
+            )
+        if not powerstation_id:
+            return {"hasError": True, "msg": "Missing powerstation id"}
+
+        url = f"{self._eu()}/api/v2/PowerStation/GetMonitorDetailByPowerstationId"
+
+        headers = {
+            "Token": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Origin": "https://www.semsportal.com",
+            "Referer": "https://www.semsportal.com/",
+            "User-Agent": "Mozilla/5.0",
+        }
+
+        payload = {"powerStationId": powerstation_id}
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+        except requests.RequestException as exc:
+            return {"hasError": True, "msg": f"Request error: {exc}"}
+
+        if response.status_code != 200:
+            return {"hasError": True, "code": response.status_code, "msg": response.text}
+
+        try:
+            raw = response.json()
+        except ValueError as exc:
+            return {"hasError": True, "msg": f"Invalid JSON response: {exc}"}
+
+        data_block = raw.get("data") if isinstance(raw, dict) else {}
+        inverter_block = {}
+        inverter_list = data_block.get("inverter") if isinstance(data_block, dict) else None
+        if isinstance(inverter_list, list) and inverter_list and isinstance(inverter_list[0], dict):
+            inverter_block = inverter_list[0]
+        inverter_data = inverter_block.get("invert_full") if isinstance(inverter_block, dict) else None
+        if not isinstance(inverter_data, dict):
+            inverter_data = {}
+
+        info_block = data_block.get("info") if isinstance(data_block, dict) else {}
+        kpi_block = data_block.get("kpi") if isinstance(data_block, dict) else {}
+        powerflow_block = data_block.get("powerflow") if isinstance(data_block, dict) else {}
+
+        def _to_percent_string(value):
+            if value is None:
+                return None
+            try:
+                number = float(value)
+                return f"{int(round(number))}%"
+            except (TypeError, ValueError):
+                text = str(value)
+                return text if text.endswith("%") else text
+
+        eday_value = inverter_data.get("eday") if inverter_data else None
+        if eday_value is None and isinstance(inverter_block, dict):
+            eday_value = inverter_block.get("eday")
+        if eday_value is None and isinstance(kpi_block, dict):
+            eday_value = kpi_block.get("power")
+
+        emonth_value = inverter_data.get("thismonthetotle") if inverter_data else None
+        if emonth_value is None and isinstance(kpi_block, dict):
+            emonth_value = kpi_block.get("month_generation")
+
+        soc_value = None
+        if isinstance(powerflow_block, dict):
+            soc_value = powerflow_block.get("soc")
+        if soc_value is None and inverter_data:
+            soc_value = inverter_data.get("soc")
+
+        temperature_value = inverter_data.get("tempperature") if inverter_data else None
+        if temperature_value is None and isinstance(inverter_block, dict):
+            temperature_value = inverter_block.get("tempperature")
+
+        model_value = inverter_data.get("model_type") if inverter_data else None
+        if model_value is None and isinstance(inverter_block, dict):
+            model_value = inverter_block.get("model_type") or inverter_block.get("type")
+
+        pv_value = powerflow_block.get("pv") if isinstance(powerflow_block, dict) else None
+        battery_status_value = powerflow_block.get("betteryStatus") if isinstance(powerflow_block, dict) else None
+        load_value = powerflow_block.get("load") if isinstance(powerflow_block, dict) else None
+
+        minimal = {
+            "powerstation_id": info_block.get("powerstation_id") if isinstance(info_block, dict) else None,
+            "stationname": info_block.get("stationname") if isinstance(info_block, dict) else None,
+            "sn": inverter_block.get("sn") if isinstance(inverter_block, dict) else None,
+            "model_type": model_value,
+            "day_income": kpi_block.get("day_income") if isinstance(kpi_block, dict) else None,
+            "eday": eday_value,
+            "emonth": emonth_value,
+            "soc": _to_percent_string(soc_value),
+            "tempperature": temperature_value,
+            "pv": pv_value,
+            "betteryStatus": battery_status_value,
+            "load": load_value,
+            "event_time": (event_time or datetime.utcnow()).isoformat(),
+        }
+
+        return {"hasError": False, "data": minimal}
+
     def GetSoc(self, powerstation_id):
         token = self.GetToken()
         if not token:
@@ -585,5 +695,3 @@ class GoodweApi:
             return {"hasError": False, "msg": "Charging mode atualizado com sucesso"}
         else:
             return {"hasError": True, "msg": "Powerstation não encontrado"}
-
-

@@ -2,8 +2,8 @@
 
 STATUS_MAP = {
     0: "idle",
-    1: "charging",
-    2: "discharging",
+    1: "carregando",
+    2: "descarregando",
     3: "generating",
     4: "grid_export",
     5: "fault",
