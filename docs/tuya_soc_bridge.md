@@ -4,7 +4,7 @@
 
 ## What it does
 - Polls GoodWe telemetry via `GoodweApi` every 60 seconds (configurable) with ±5 s jitter.
-- Maps SOC/status plus inverter KPIs (`load_w`, `pv_power_w`, `inverter_eday_kwh`, `inverter_emonth_kwh`, `kpi_day_income_usd`).
+- Maps SOC/status plus inverter KPIs to Tuya identifiers (`Bateria`, `status`, `Consumo_Residencial`, `Producao_Solar_Atual`, `Energia_Hoje`, `Energia_Este_Mes`, `Receita_Hoje`).
 - Publishes the mapped telemetry to TuyaLink MQTT over TLS using device credentials, or prints the payload when Tuya credentials are absent (dry-run).
 
 ## Configuration
@@ -24,7 +24,7 @@ python -m integrations.tuya.bridge_soc
 The bridge logs one INFO line per publish. In dry-run mode (missing Tuya env vars) it prints the JSON payload instead of connecting to TuyaLink.
 
 ## Verification checklist
-- TuyaLink console → Product → Online Debugging shows `battery_soc` and `status` updates every ~60 s.
+- TuyaLink console → Product → Online Debugging shows `Bateria` and `status` updates every ~60 s.
 - Device status flips from offline to online once MQTT connects.
 - Smart Life / Tuya app (optional) displays live SOC telemetry.
 - Logs confirm one publish per polling interval and warn if SOC/status values look anomalous.
@@ -37,17 +37,15 @@ TuyaLink expects property reports to wrap each DP inside a `data` object with in
   "msgId": "<uuid>",
   "time": 1695391039412,
   "data": {
-    "battery_soc": {"value": 62},
-    "status": {"value": "charging"},
-    "load_w": {"value": 412},
-    "pv_power_w": {"value": 1234},
-    "inverter_eday_kwh": {"value": 28},
-    "inverter_emonth_kwh": {"value": 618},
-    "kpi_day_income_usd": {"value": 7}
+    "Bateria": {"value": 62},
+    "status": {"value": "carregando"},
+    "Consumo_Residencial": {"value": 412},
+    "Producao_Solar_Atual": {"value": 1234},
+    "Energia_Hoje": {"value": 28},
+    "Energia_Este_Mes": {"value": 618},
+    "Receita_Hoje": {"value": 7}
   }
 }
 ```
 
-If the `data` wrapper or `value` keys are omitted (e.g., sending `{"properties": {"battery_soc": 62}}`), Tuya silently discards the report even though the device shows as online. Keep this structure when extending the bridge with new telemetry points.
-
-
+If the `data` wrapper or `value` keys are omitted (e.g., sending `{"properties": {"Bateria": 62}}`), Tuya silently discards the report even though the device shows as online. Keep this structure when extending the bridge with new telemetry points.
