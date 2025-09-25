@@ -58,6 +58,8 @@ O FastAPI serve diretamente `frontend/public`, então basta reconstruir antes de
 python cli.py
 ```
 
+**Tuya Automation CLI:** consulte `docs/tuya_automation.md` para o fluxo completo e comandos `python -m integrations.tuya.cli`.
+
 ## Endpoints da API
 
 **Chat e Interface Principal:**

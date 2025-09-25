@@ -1,0 +1,34 @@
+{
+  "space_id": "${SPACE_ID}",
+  "name": "${SCENE_NAME}",
+  "type": "automation",
+  "decision_expr": "and",
+  "conditions": [
+    {
+      "code": 1,
+      "entity_id": "${SENSOR_DEVICE_ID}",
+      "entity_type": "device_report",
+      "expr": {
+        "status_code": "${STATUS_CODE}",
+        "comparator": "${COMPARATOR}",
+        "status_value": ${STATUS_VALUE}
+      }
+    }
+  ],
+  "actions": [
+    {
+      "entity_id": "${ACTUATOR_DEVICE_ID}",
+      "action_executor": "device_issue",
+      "executor_property": {
+        "function_code": "${FUNCTION_CODE}",
+        "function_value": ${FUNCTION_VALUE}
+      }
+    }
+  ],
+  "effective_time": {
+    "start": "00:00",
+    "end": "23:59",
+    "loops": "1111111",
+    "time_zone_id": "${TIME_ZONE}"
+  }
+}
