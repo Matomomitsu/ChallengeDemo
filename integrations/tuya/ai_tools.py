@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict, Iterable, List, Optional
 
 from dotenv import load_dotenv
@@ -35,6 +36,52 @@ def _wrap_result(result: Any, *, extra: Optional[Dict[str, Any]] = None) -> Dict
     return _redact(payload)
 
 
+def _humanize_code(code: str) -> str:
+    if not code:
+        return ""
+    label = re.sub(r"[_\-]+", " ", code).strip()
+    if not label:
+        label = code
+    if label.isupper():
+        label = label.title()
+    else:
+        label = label[:1].upper() + label[1:]
+    return label.replace(" Id", " ID")
+
+
+def _property_display(code: str, prop: Any) -> Dict[str, Any]:
+    label = getattr(prop, "custom_name", None) or _humanize_code(code)
+    display: Dict[str, Any] = {
+        "code": code,
+        "label": label,
+        "value": getattr(prop, "value", None),
+    }
+    dp_id = getattr(prop, "dp_id", None)
+    if dp_id is not None:
+        display["dp_id"] = dp_id
+    prop_type = getattr(prop, "type", None)
+    if prop_type:
+        display["type"] = prop_type
+    timestamp = getattr(prop, "time", None)
+    if timestamp is not None:
+        display["updated_at"] = timestamp
+    return display
+
+
+def _normalize_heuristic_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(params)
+    threshold_aliases = [
+        normalized.pop("soc_threshold", None),
+        normalized.get("threshold_percent"),
+    ]
+    threshold_value = next((value for value in threshold_aliases if value is not None), None)
+    if threshold_value is not None:
+        normalized.setdefault("threshold", threshold_value)
+        normalized.setdefault("status_value", threshold_value)
+        normalized.pop("threshold_percent", None)
+    return normalized
+
+
 def _build_workflow(config_path: Optional[str] = None) -> tuple[TuyaAutomationWorkflow, Dict[str, Any]]:
     load_dotenv(".env")
     client_id = os.getenv("TUYA_CLIENT_ID")
@@ -63,8 +110,14 @@ def describe_space(space_id: str, *, config_path: Optional[str] = None) -> Dict[
 def inspect_device(device_id: str, *, codes: Optional[Iterable[str]] = None) -> Dict[str, Any]:
     workflow, _ = _build_workflow()
     props_map = workflow.inspect_properties([device_id], codes=list(codes) if codes else None)
-    properties = {code: prop.model_dump(exclude_none=True) for code, prop in props_map.get(device_id, {}).items()}
-    return {"device_id": device_id, "properties": _redact(properties)}
+    prop_objects = props_map.get(device_id, {})
+    properties = {code: prop.model_dump(exclude_none=True) for code, prop in prop_objects.items()}
+    displays = [_property_display(code, prop) for code, prop in sorted(prop_objects.items())]
+    return {
+        "device_id": device_id,
+        "properties": _redact(properties),
+        "properties_display": displays,
+    }
 
 
 def propose_automation(
@@ -80,7 +133,7 @@ def propose_automation(
         for key, params in heuristic_overrides.items():
             existing = heuristics_cfg.get(key, {}) or {}
             merged = dict(existing)
-            merged.update(params)
+            merged.update(_normalize_heuristic_params(params))
             heuristics_cfg[key] = merged
     heuristic_keys = list(heuristic_set) if heuristic_set else None
     if heuristic_keys is None and heuristic_overrides:

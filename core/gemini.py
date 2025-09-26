@@ -22,21 +22,49 @@ from integrations.tuya.ai_tools import (
     update_automation,
 )
 
+load_dotenv(".env")
+
 # Global chat instance for maintaining conversation context
 chat_instance = None
 DEFAULT_STATION_NAME = "Bauer"
 DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
-
-load_dotenv(".env")
+DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID") or "265551117"
 
 TUYA_PROMPT_ADDITION = """
 Tuya automation tooling is available via dedicated function calls.
 - Heuristics available for proposal previews: battery_protect (shed loads when SOC low), solar_surplus (enable loads during PV surplus), night_guard (disable loads overnight unless PV power is present).
+- Default to the configured Tuya space when the user does not supply one; avoid asking for IDs unless strictly necessary.
 - Provide device IDs when calling tuya_propose_automation by using the heuristic_overrides argument (e.g., inverter/load IDs, thresholds) so payloads can be generated without editing config files.
 - When a user requests ideas, call tuya_propose_automation first and show the resulting payloads; ask for explicit confirmation before any create/update/delete/trigger call.
 - Destructive or state-changing helpers require the confirm flag set to true; never bypass user consent.
-- Use tuya_inspect_device to surface datapoint codes and explain them in answers.
+- Use tuya_inspect_device to surface datapoint codes and explain them in answers, but speak in plain language; prefer friendly labels (custom names) and avoid dumping raw JSON.
 - Summarize scene IDs returned by create/update/delete operations so the user can reference them later.
+""".strip()
+
+FRIENDLY_PROMPT_ADDITION = """
+Always address the user like a helpful home automation guide:
+- Assume limited technical knowledge; translate device properties and datapoint codes into human terms (e.g., "Bateria" → "Nível da bateria").
+- Highlight only the most relevant facts in responses (names, current values, status) and keep raw payloads hidden unless the user explicitly requests them.
+- When referencing automations or devices, lead with friendly names and only surface IDs if the user asks or they are strictly necessary for clarity.
+- Proactively mention confirmations or follow-up steps so the user feels guided through the process.
+- Confirmations should reference the friendly name (e.g., "Quer ativar a automação Battery Protect?") and avoid repeating raw IDs.
+
+Example flow:
+Usuário: "Crie uma automação para desligar o plug quando a bateria cair."
+Assistente: (1) Usa descrições simples para explicar a ideia; (2) chama as ferramentas necessárias; (3) pergunta: "Posso criar a automação 'Proteger bateria' para desligar o smart plug quando a bateria ficar abaixo de 50%?" sem expor JSON.
+
+Model responses should follow these patterns:
+1. **Listar dispositivos e cenas**
+   "Encontrei dois dispositivos no seu espaço Tuya: o smart plug (online) e o inversor solar GoodWe (offline no momento). Há uma automação ativa chamada 'Battery Protect (Bateria < 50%)'. Quer que eu verifique os detalhes de algum deles ou crie algo novo?"
+
+2. **Entender propriedades de um dispositivo**
+   "O inversor solar mostra nível de bateria em 76%, consumo residencial em 414 W e geração solar atual em 0 W. Esses são os pontos mais relevantes para decidir automações. Quer configurar alertas com base em algum desses dados?"
+
+3. **Propor e criar automações**
+   "Posso configurar uma cena chamada 'Aproveitar excedente solar' que liga o smart plug quando a produção passar de 800 W. Se fizer sentido, confirmo com você antes de criar e já deixo habilitada. Deseja que eu avance com isso?"
+
+4. **Ativar, desativar, apagar ou disparar automações**
+   "A automação 'Battery Protect' está pronta. Ativei agora mesmo e posso dispará-la manualmente para testar se quiser. Também consigo desabilitar ou remover qualquer automação que não use mais. O que prefere fazer em seguida?"
 """.strip()
 
 def _auto_date_range(args: dict) -> dict:
@@ -355,10 +383,9 @@ def create_function_declarations():
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
-                "space_id": types.Schema(type=types.Type.STRING, description="ID do espaço Tuya."),
+                "space_id": types.Schema(type=types.Type.STRING, description="Opcional: ID do espaço Tuya (usa padrão configurado se ausente)."),
                 "config_path": types.Schema(type=types.Type.STRING, description="Opcional: caminho para configs/automation.yaml customizado."),
             },
-            required=["space_id"],
         ),
     )
     functions.append(tuya_describe_space)
@@ -389,7 +416,7 @@ def create_function_declarations():
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
-                "space_id": types.Schema(type=types.Type.STRING, description="ID do espaço Tuya."),
+                "space_id": types.Schema(type=types.Type.STRING, description="Opcional: ID do espaço Tuya (usa padrão configurado se ausente)."),
                 "heuristic_set": types.Schema(
                     type=types.Type.ARRAY,
                     description="Opcional: subconjunto das heurísticas (battery_protect, solar_surplus, night_guard).",
@@ -401,7 +428,6 @@ def create_function_declarations():
                     description="Mapeamento opcional heurística→parâmetros (ex.: inverter_device_id, load_device_id, threshold).",
                 ),
             },
-            required=["space_id"],
         ),
     )
     functions.append(tuya_propose_automation)
@@ -499,8 +525,13 @@ def initialize_chat():
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         system_prompt = get_system_prompt()
+        additions: list[str] = []
         if TUYA_PROMPT_ADDITION:
-            system_prompt = f"{system_prompt.rstrip()}\n\n{TUYA_PROMPT_ADDITION}"
+            additions.append(TUYA_PROMPT_ADDITION)
+        if FRIENDLY_PROMPT_ADDITION:
+            additions.append(FRIENDLY_PROMPT_ADDITION)
+        if additions:
+            system_prompt = "\n\n".join(filter(None, [system_prompt.rstrip(), *additions]))
         function_declarations = create_function_declarations()
 
         # Create the chat with tools and system instruction
@@ -590,6 +621,13 @@ def execute_function_call(function_call, *, powerstation_override: Optional[str]
     function_args = dict(function_call.args) if function_call.args else {}
     fallback_to_default = False
     used_powerstation_id = function_args.get("powerstation_id")
+
+    if function_name in {
+        "tuya_describe_space",
+        "tuya_propose_automation",
+    }:
+        if not function_args.get("space_id") and DEFAULT_TUYA_SPACE_ID:
+            function_args["space_id"] = DEFAULT_TUYA_SPACE_ID
 
     if function_name in function_map:
         try:

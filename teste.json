@@ -1,0 +1,32 @@
+  {
+    "interactionModel": {
+      "languageModel": {
+        "invocationName": "good we",
+        "intents": [
+          { "name": "AMAZON.CancelIntent", "samples": [] },
+          { "name": "AMAZON.HelpIntent", "samples": [] },
+          { "name": "AMAZON.StopIntent", "samples": [] },
+          { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+          { "name": "AMAZON.FallbackIntent", "samples": [] },
+          { "name": "AMAZON.RepeatIntent", "samples": [] },
+          {
+            "name": "ChatIntent",
+            "slots": [
+              { "name": "user_input", "type": "AMAZON.SearchQuery" }
+            ],
+            "samples": [
+              "qual {user_input}",
+              "pergunte {user_input}",
+              "diga {user_input}",
+              "quero saber {user_input}",
+              "fala para mim {user_input}",
+              "sobre {user_input}",
+              "me ajuda com {user_input}",
+              "pergunta sobre {user_input}"
+            ]
+          }
+        ],
+        "types": []
+      }
+    }
+  }
