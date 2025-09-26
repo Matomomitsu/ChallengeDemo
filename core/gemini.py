@@ -28,7 +28,7 @@ load_dotenv(".env")
 chat_instance = None
 DEFAULT_STATION_NAME = "Bauer"
 DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
-DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID") or "265551117"
+DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID") 
 
 TUYA_PROMPT_ADDITION = """
 Tuya automation tooling is available via dedicated function calls.
