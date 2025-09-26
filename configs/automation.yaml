@@ -1,5 +1,5 @@
 # Sample automation configuration for Tuya scenes.
-space_id: "265551117"
+space_id: ""
 time_zone_id: "America/Sao_Paulo"
 enabled_heuristics:
   - battery_protect
