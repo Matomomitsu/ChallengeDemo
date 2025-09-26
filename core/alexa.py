@@ -46,6 +46,7 @@ async def alexa_endpoint(req: dict):
             class ChatRequest:
                 def __init__(self, user_input):
                     self.user_input = user_input
+                    self.plant_id = None
 
             chat_req = ChatRequest(user_input)
             response = await chat_endpoint(chat_req)

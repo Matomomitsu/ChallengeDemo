@@ -1,0 +1,44 @@
+# Sample automation configuration for Tuya scenes.
+space_id: ""
+time_zone_id: "America/Sao_Paulo"
+enabled_heuristics:
+  - battery_protect
+  - solar_surplus
+  - night_guard
+heuristics:
+  battery_protect:
+    name: "Battery < 90 disables smart plug"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    threshold: 90
+    comparator: "<"
+    switch_value: false
+    property_codes:
+      battery_soc: "Bateria"
+    function_codes:
+      switch: "switch_1"
+  solar_surplus:
+    name: "Solar surplus turns plug on"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    pv_threshold_w: 800
+    comparator: ">"
+    switch_value: true
+    property_codes:
+      pv_power: "Producao_Solar_Atual"
+    function_codes:
+      switch: "switch_1"
+  night_guard:
+    name: "Night guard turns plug off"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    comparator: "=="
+    status_value: 0
+    switch_value: false
+    start: "18:00"
+    end: "06:00"
+    loops: "1111111"
+    property_codes:
+      pv_power: "Producao_Solar_Atual"
+    function_codes:
+      switch: "switch_1"

@@ -1,9 +1,13 @@
 import asyncio
 import argparse
 import json
+import os
 from core.gemini import call_geminiapi, initialize_chat
 from core.sems_history import fetch_and_parse_7d
 from dotenv import load_dotenv
+
+SHOW_FUNCTION_PREVIEW = os.getenv("BOT_SOLAR_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+
 
 def chat_interface():
     """CLI chat interface for testing"""
@@ -29,7 +33,7 @@ def chat_interface():
                 response_text = result.get("response", "")
                 print(f"🤖 BotSolar: {response_text}\n")
                 functions_preview = result.get("functions_preview") or []
-                if functions_preview:
+                if SHOW_FUNCTION_PREVIEW and functions_preview:
                     print("🔍 Funções executadas:")
                     print(json.dumps(functions_preview, ensure_ascii=False, indent=2))
                     print()
