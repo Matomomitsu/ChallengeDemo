@@ -21,6 +21,20 @@ def _redact(data: Any) -> Any:
     return data
 
 
+def _wrap_result(result: Any, *, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if isinstance(result, dict):
+        payload: Dict[str, Any] = dict(result)
+    elif isinstance(result, bool):
+        payload = {"success": result}
+    elif result is None:
+        payload = {"success": True}
+    else:
+        payload = {"result": result}
+    if extra:
+        payload.update(extra)
+    return _redact(payload)
+
+
 def _build_workflow(config_path: Optional[str] = None) -> tuple[TuyaAutomationWorkflow, Dict[str, Any]]:
     load_dotenv(".env")
     client_id = os.getenv("TUYA_CLIENT_ID")
@@ -58,9 +72,21 @@ def propose_automation(
     heuristic_set: Optional[Iterable[str]] = None,
     *,
     config_path: Optional[str] = None,
+    heuristic_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     workflow, config = _build_workflow(config_path)
+    heuristics_cfg = config.setdefault("heuristics", {})
+    if heuristic_overrides:
+        for key, params in heuristic_overrides.items():
+            existing = heuristics_cfg.get(key, {}) or {}
+            merged = dict(existing)
+            merged.update(params)
+            heuristics_cfg[key] = merged
     heuristic_keys = list(heuristic_set) if heuristic_set else None
+    if heuristic_keys is None and heuristic_overrides:
+        heuristic_keys = list(heuristic_overrides.keys())
+    if heuristic_keys is None:
+        heuristic_keys = list(heuristics_cfg.keys()) or None
     proposals, device_map, properties = _prepare_proposals(workflow, config, space_id, heuristic_keys)
     payloads = workflow.build_scene_payloads(space_id=space_id, proposals=proposals)
     return {
@@ -92,7 +118,7 @@ def create_and_enable_automation(
             workflow.enable_scene(rule_id, enable=True)
         except TuyaApiError as exc:
             raise RuntimeError(f"Scene created but enabling failed: {exc}") from exc
-    return _redact(result)
+    return _wrap_result(result, extra={"rule_id": rule_id, "enabled": bool(enable)})
 
 
 def trigger_scene(rule_id: str, *, confirm: bool) -> Dict[str, Any]:
@@ -103,7 +129,7 @@ def trigger_scene(rule_id: str, *, confirm: bool) -> Dict[str, Any]:
         result = workflow.trigger_scene(rule_id)
     except TuyaApiError as exc:
         raise RuntimeError(f"Failed to trigger scene: {exc}") from exc
-    return _redact(result)
+    return _wrap_result(result, extra={"rule_id": rule_id})
 
 
 def update_automation(
@@ -119,7 +145,7 @@ def update_automation(
         result = workflow.update_scene(rule_id, payload)
     except (TuyaApiError, ValueError) as exc:
         raise RuntimeError(f"Failed to update scene: {exc}") from exc
-    return _redact(result)
+    return _wrap_result(result, extra={"rule_id": rule_id})
 
 
 def delete_automations(
@@ -135,11 +161,12 @@ def delete_automations(
     resolved_space = space_id or config.get("space_id") or os.getenv("TUYA_SPACE_ID")
     if not resolved_space:
         raise RuntimeError("space_id must be provided via argument, config, or TUYA_SPACE_ID")
+    rule_ids_list = list(rule_ids)
     try:
-        result = workflow.delete_scenes(list(rule_ids), resolved_space)
+        result = workflow.delete_scenes(rule_ids_list, resolved_space)
     except (TuyaApiError, ValueError) as exc:
         raise RuntimeError(f"Failed to delete scenes: {exc}") from exc
-    return _redact(result)
+    return _wrap_result(result, extra={"rule_ids": rule_ids_list, "space_id": resolved_space})
 
 
 def set_automation_state(
@@ -151,11 +178,12 @@ def set_automation_state(
     if not confirm:
         raise PermissionError("Updating scene state requires confirmation")
     workflow, _ = _build_workflow()
+    rule_ids_list = list(rule_ids)
     try:
-        result = workflow.set_scenes_state(list(rule_ids), enable)
+        result = workflow.set_scenes_state(rule_ids_list, enable)
     except (TuyaApiError, ValueError) as exc:
         raise RuntimeError(f"Failed to update scene state: {exc}") from exc
-    return _redact(result)
+    return _wrap_result(result, extra={"rule_ids": rule_ids_list, "enable": enable})
 
 
 def _prepare_proposals(

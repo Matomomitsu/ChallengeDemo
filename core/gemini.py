@@ -4,15 +4,40 @@ import json
 import os
 from typing import Any, Dict, Optional
 
+from dotenv import load_dotenv
+
 import core.goodweApi as goodweApi
 from core import usage_optimizer
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from integrations.tuya.ai_tools import (
+    create_and_enable_automation,
+    delete_automations,
+    describe_space,
+    inspect_device,
+    propose_automation,
+    set_automation_state,
+    trigger_scene,
+    update_automation,
+)
+
 # Global chat instance for maintaining conversation context
 chat_instance = None
 DEFAULT_STATION_NAME = "Bauer"
 DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
+
+load_dotenv(".env")
+
+TUYA_PROMPT_ADDITION = """
+Tuya automation tooling is available via dedicated function calls.
+- Heuristics available for proposal previews: battery_protect (shed loads when SOC low), solar_surplus (enable loads during PV surplus), night_guard (disable loads overnight unless PV power is present).
+- Provide device IDs when calling tuya_propose_automation by using the heuristic_overrides argument (e.g., inverter/load IDs, thresholds) so payloads can be generated without editing config files.
+- When a user requests ideas, call tuya_propose_automation first and show the resulting payloads; ask for explicit confirmation before any create/update/delete/trigger call.
+- Destructive or state-changing helpers require the confirm flag set to true; never bypass user consent.
+- Use tuya_inspect_device to surface datapoint codes and explain them in answers.
+- Summarize scene IDs returned by create/update/delete operations so the user can reference them later.
+""".strip()
 
 def _auto_date_range(args: dict) -> dict:
     tz = ZoneInfo("America/Sao_Paulo")
@@ -321,6 +346,150 @@ def create_function_declarations():
         )
     )
     functions.append(optimize_usage)
+
+    tuya_describe_space = types.FunctionDeclaration(
+        name="tuya_describe_space",
+        description=(
+            "Listar dispositivos e cenas Tuya para um space_id (sem expor segredos)."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "space_id": types.Schema(type=types.Type.STRING, description="ID do espaço Tuya."),
+                "config_path": types.Schema(type=types.Type.STRING, description="Opcional: caminho para configs/automation.yaml customizado."),
+            },
+            required=["space_id"],
+        ),
+    )
+    functions.append(tuya_describe_space)
+
+    tuya_inspect_device = types.FunctionDeclaration(
+        name="tuya_inspect_device",
+        description="Obter propriedades (datapoints) de um dispositivo Tuya para explicar códigos ao usuário.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "device_id": types.Schema(type=types.Type.STRING, description="ID do dispositivo Tuya."),
+                "codes": types.Schema(
+                    type=types.Type.ARRAY,
+                    description="Opcional: lista de códigos DP para filtrar.",
+                    items=types.Schema(type=types.Type.STRING),
+                ),
+            },
+            required=["device_id"],
+        ),
+    )
+    functions.append(tuya_inspect_device)
+
+    tuya_propose_automation = types.FunctionDeclaration(
+        name="tuya_propose_automation",
+        description=(
+            "Gerar payloads de automação Tuya usando heurísticas (pré-visualização, não cria regras)."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "space_id": types.Schema(type=types.Type.STRING, description="ID do espaço Tuya."),
+                "heuristic_set": types.Schema(
+                    type=types.Type.ARRAY,
+                    description="Opcional: subconjunto das heurísticas (battery_protect, solar_surplus, night_guard).",
+                    items=types.Schema(type=types.Type.STRING),
+                ),
+                "config_path": types.Schema(type=types.Type.STRING, description="Opcional: caminho alternativo para automation.yaml."),
+                "heuristic_overrides": types.Schema(
+                    type=types.Type.OBJECT,
+                    description="Mapeamento opcional heurística→parâmetros (ex.: inverter_device_id, load_device_id, threshold).",
+                ),
+            },
+            required=["space_id"],
+        ),
+    )
+    functions.append(tuya_propose_automation)
+
+    tuya_create_and_enable_automation = types.FunctionDeclaration(
+        name="tuya_create_and_enable_automation",
+        description=(
+            "Criar (e opcionalmente habilitar) uma cena Tuya. Requer confirmação explícita."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "payload": types.Schema(type=types.Type.OBJECT, description="Payload completo da cena conforme templates Tuya."),
+                "confirm": types.Schema(type=types.Type.BOOLEAN, description="Deve ser true após o usuário autorizar a criação."),
+                "enable": types.Schema(type=types.Type.BOOLEAN, description="Se true, habilita a cena após criar."),
+            },
+            required=["payload", "confirm"],
+        ),
+    )
+    functions.append(tuya_create_and_enable_automation)
+
+    tuya_update_automation = types.FunctionDeclaration(
+        name="tuya_update_automation",
+        description="Atualizar uma cena Tuya existente com novo payload (confirmação obrigatória).",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "rule_id": types.Schema(type=types.Type.STRING, description="ID da cena/regra Tuya."),
+                "payload": types.Schema(type=types.Type.OBJECT, description="Payload atualizado conforme schema Tuya."),
+                "confirm": types.Schema(type=types.Type.BOOLEAN, description="Deve ser true após o usuário aprovar a alteração."),
+            },
+            required=["rule_id", "payload", "confirm"],
+        ),
+    )
+    functions.append(tuya_update_automation)
+
+    tuya_delete_automations = types.FunctionDeclaration(
+        name="tuya_delete_automations",
+        description="Excluir uma ou mais cenas Tuya (usa space_id do args/config/ENV). Necessita confirmação.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "rule_ids": types.Schema(
+                    type=types.Type.ARRAY,
+                    description="Lista de IDs das cenas a remover.",
+                    items=types.Schema(type=types.Type.STRING),
+                ),
+                "space_id": types.Schema(type=types.Type.STRING, description="Opcional: space_id para reforçar o escopo."),
+                "config_path": types.Schema(type=types.Type.STRING, description="Opcional: caminho alternativo para automation.yaml."),
+                "confirm": types.Schema(type=types.Type.BOOLEAN, description="Deve ser true após o usuário solicitar exclusão."),
+            },
+            required=["rule_ids", "confirm"],
+        ),
+    )
+    functions.append(tuya_delete_automations)
+
+    tuya_set_automation_state = types.FunctionDeclaration(
+        name="tuya_set_automation_state",
+        description="Habilitar ou desabilitar uma lista de cenas Tuya (confirmação obrigatória).",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "rule_ids": types.Schema(
+                    type=types.Type.ARRAY,
+                    description="Lista de IDs das cenas para alterar estado.",
+                    items=types.Schema(type=types.Type.STRING),
+                ),
+                "enable": types.Schema(type=types.Type.BOOLEAN, description="True para habilitar, False para desabilitar."),
+                "confirm": types.Schema(type=types.Type.BOOLEAN, description="Deve ser true após confirmação do usuário."),
+            },
+            required=["rule_ids", "enable", "confirm"],
+        ),
+    )
+    functions.append(tuya_set_automation_state)
+
+    tuya_trigger_scene = types.FunctionDeclaration(
+        name="tuya_trigger_scene",
+        description="Acionar manualmente uma cena Tuya (confirmação obrigatória).",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "rule_id": types.Schema(type=types.Type.STRING, description="ID da cena a ser disparada."),
+                "confirm": types.Schema(type=types.Type.BOOLEAN, description="Deve ser true após o usuário solicitar o disparo."),
+            },
+            required=["rule_id", "confirm"],
+        ),
+    )
+    functions.append(tuya_trigger_scene)
     return functions
 
 def initialize_chat():
@@ -330,6 +499,8 @@ def initialize_chat():
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         system_prompt = get_system_prompt()
+        if TUYA_PROMPT_ADDITION:
+            system_prompt = f"{system_prompt.rstrip()}\n\n{TUYA_PROMPT_ADDITION}"
         function_declarations = create_function_declarations()
 
         # Create the chat with tools and system instruction
@@ -395,6 +566,14 @@ def execute_function_call(function_call, *, powerstation_override: Optional[str]
         "optimize_usage": usage_optimizer.optimize_usage,
         "get_ev_charger_status": goodwe_api_instance.GetEvChargerChargingMode,
         "change_ev_charger_status": goodwe_api_instance.ChangeEvChargerChargingMode,
+        "tuya_describe_space": describe_space,
+        "tuya_inspect_device": inspect_device,
+        "tuya_propose_automation": propose_automation,
+        "tuya_create_and_enable_automation": create_and_enable_automation,
+        "tuya_update_automation": update_automation,
+        "tuya_delete_automations": delete_automations,
+        "tuya_set_automation_state": set_automation_state,
+        "tuya_trigger_scene": trigger_scene,
     }
 
     needs_powerstation = {
