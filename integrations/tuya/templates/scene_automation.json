@@ -11,7 +11,7 @@
       "expr": {
         "status_code": "${STATUS_CODE}",
         "comparator": "${COMPARATOR}",
-        "status_value": ${STATUS_VALUE}
+        "status_value": "${STATUS_VALUE}"
       }
     }
   ],
@@ -21,7 +21,7 @@
       "action_executor": "device_issue",
       "executor_property": {
         "function_code": "${FUNCTION_CODE}",
-        "function_value": ${FUNCTION_VALUE}
+        "function_value": "${FUNCTION_VALUE}"
       }
     }
   ],
