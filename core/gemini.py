@@ -2,7 +2,10 @@ from google import genai
 from google.genai import types
 import json
 import os
-from typing import Any, Dict, Optional
+import re
+import time
+import unicodedata
+from typing import Any, Dict, Optional, Sequence
 
 from dotenv import load_dotenv
 
@@ -30,42 +33,198 @@ DEFAULT_STATION_NAME = "Bauer"
 DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
 DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID") 
 
-TUYA_PROMPT_ADDITION = """
-Tuya automation tooling is available via dedicated function calls.
-- Heuristics available for proposal previews: battery_protect (shed loads when SOC low), solar_surplus (enable loads during PV surplus), night_guard (disable loads overnight unless PV power is present).
-- Default to the configured Tuya space when the user does not supply one; avoid asking for IDs unless strictly necessary.
-- Provide device IDs when calling tuya_propose_automation by using the heuristic_overrides argument (e.g., inverter/load IDs, thresholds) so payloads can be generated without editing config files.
-- When a user requests ideas, call tuya_propose_automation first and show the resulting payloads; ask for explicit confirmation before any create/update/delete/trigger call.
-- Destructive or state-changing helpers require the confirm flag set to true; never bypass user consent.
-- Use tuya_inspect_device to surface datapoint codes and explain them in answers, but speak in plain language; prefer friendly labels (custom names) and avoid dumping raw JSON.
-- Summarize scene IDs returned by create/update/delete operations so the user can reference them later.
-""".strip()
+def _normalize_label(value: str) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+    return normalized
 
-FRIENDLY_PROMPT_ADDITION = """
-Always address the user like a helpful home automation guide:
-- Assume limited technical knowledge; translate device properties and datapoint codes into human terms (e.g., "Bateria" → "Nível da bateria").
-- Highlight only the most relevant facts in responses (names, current values, status) and keep raw payloads hidden unless the user explicitly requests them.
-- When referencing automations or devices, lead with friendly names and only surface IDs if the user asks or they are strictly necessary for clarity.
-- Proactively mention confirmations or follow-up steps so the user feels guided through the process.
-- Confirmations should reference the friendly name (e.g., "Quer ativar a automação Battery Protect?") and avoid repeating raw IDs.
 
-Example flow:
-Usuário: "Crie uma automação para desligar o plug quando a bateria cair."
-Assistente: (1) Usa descrições simples para explicar a ideia; (2) chama as ferramentas necessárias; (3) pergunta: "Posso criar a automação 'Proteger bateria' para desligar o smart plug quando a bateria ficar abaixo de 50%?" sem expor JSON.
+def _build_lookup(entries: Sequence[Dict[str, Any]], *, name_fields: Sequence[str]) -> Dict[str, str]:
+    lookup: Dict[str, str] = {}
+    for entry in entries or []:
+        identifier = entry.get("id") or entry.get("rule_id")
+        if not identifier:
+            continue
+        seen: set[str] = set()
+        for field in name_fields:
+            candidate = entry.get(field)
+            if not candidate:
+                continue
+            label = str(candidate).strip()
+            if not label:
+                continue
+            normalized = _normalize_label(label)
+            if not normalized or normalized in seen:
+                continue
+            lookup[normalized] = identifier
+            seen.add(normalized)
+    return lookup
 
-Model responses should follow these patterns:
-1. **Listar dispositivos e cenas**
-   "Encontrei dois dispositivos no seu espaço Tuya: o smart plug (online) e o inversor solar GoodWe (offline no momento). Há uma automação ativa chamada 'Battery Protect (Bateria < 50%)'. Quer que eu verifique os detalhes de algum deles ou crie algo novo?"
 
-2. **Entender propriedades de um dispositivo**
-   "O inversor solar mostra nível de bateria em 76%, consumo residencial em 414 W e geração solar atual em 0 W. Esses são os pontos mais relevantes para decidir automações. Quer configurar alertas com base em algum desses dados?"
+def _update_tuya_cache(space_id: str, payload: Dict[str, Any]) -> None:
+    if not payload:
+        return
+    devices = payload.get("devices") or []
+    scenes = payload.get("scenes") or []
+    _TUYA_CONTEXT_CACHE["space_id"] = space_id
+    _TUYA_CONTEXT_CACHE["payload"] = payload
+    _TUYA_CONTEXT_CACHE["timestamp"] = time.time()
+    _TUYA_CONTEXT_CACHE["device_lookup"] = _build_lookup(devices, name_fields=("customName", "name"))
+    _TUYA_CONTEXT_CACHE["scene_lookup"] = _build_lookup(scenes, name_fields=("customName", "name", "display_name"))
 
-3. **Propor e criar automações**
-   "Posso configurar uma cena chamada 'Aproveitar excedente solar' que liga o smart plug quando a produção passar de 800 W. Se fizer sentido, confirmo com você antes de criar e já deixo habilitada. Deseja que eu avance com isso?"
 
-4. **Ativar, desativar, apagar ou disparar automações**
-   "A automação 'Battery Protect' está pronta. Ativei agora mesmo e posso dispará-la manualmente para testar se quiser. Também consigo desabilitar ou remover qualquer automação que não use mais. O que prefere fazer em seguida?"
-""".strip()
+def _invalidate_tuya_cache() -> None:
+    _TUYA_CONTEXT_CACHE["payload"] = None
+    _TUYA_CONTEXT_CACHE["timestamp"] = 0.0
+    _TUYA_CONTEXT_CACHE["device_lookup"] = {}
+    _TUYA_CONTEXT_CACHE["scene_lookup"] = {}
+
+
+def _get_cached_tuya_context(space_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    target = space_id or DEFAULT_TUYA_SPACE_ID
+    cache_space = _TUYA_CONTEXT_CACHE.get("space_id")
+    cached = _TUYA_CONTEXT_CACHE.get("payload")
+    if not cached or cache_space != target:
+        return None
+    if (time.time() - _TUYA_CONTEXT_CACHE.get("timestamp", 0.0)) > _TUYA_CACHE_TTL_SECONDS:
+        return None
+    return cached
+
+
+def _refresh_tuya_context(space_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    target = space_id or DEFAULT_TUYA_SPACE_ID
+    if not target:
+        return None
+    try:
+        payload = describe_space(target)
+    except Exception as exc:  # pragma: no cover - network failure
+        print(f"⚠️ Could not refresh Tuya context: {exc}")
+        return None
+    if isinstance(payload, dict):
+        _update_tuya_cache(target, payload)
+    return payload
+
+
+def _should_bootstrap_tuya(message: str) -> bool:
+    if not message:
+        return False
+    lower = message.lower()
+    return any(keyword in lower for keyword in _AUTOMATION_KEYWORDS)
+
+
+def _format_tuya_context(payload: Dict[str, Any]) -> str:
+    space_id = payload.get("space_id") or DEFAULT_TUYA_SPACE_ID or ""
+    devices = payload.get("devices") or []
+    scenes = payload.get("scenes") or []
+
+    device_lines = []
+    for device in devices:
+        friendly = (device.get("customName") or device.get("name") or "Dispositivo").strip()
+        device_id = device.get("id", "")
+        device_lines.append(f"- {friendly} -> {device_id}")
+    if not device_lines:
+        device_lines.append("- nenhum dispositivo disponível")
+
+    scene_lines = []
+    for scene in scenes:
+        friendly = (scene.get("name") or scene.get("display_name") or "Cena").strip()
+        rule_id = scene.get("rule_id") or scene.get("id") or ""
+        scene_lines.append(f"- {friendly} -> {rule_id}")
+    if not scene_lines:
+        scene_lines.append("- nenhuma cena cadastrada")
+
+    context_lines = [
+        "[Contexto interno Tuya - não revele IDs ou códigos]",
+        f"space_id interno: {space_id}",
+        "Dispositivos conhecidos:",
+        *device_lines,
+        "Cenas conhecidas:",
+        *scene_lines,
+        "Use apenas os nomes amigáveis nas respostas; utilize os IDs acima somente nas chamadas de função.",
+    ]
+    return "\n".join(context_lines)
+
+
+def _augment_user_input_with_tuya_context(user_input: str) -> tuple[str, bool]:
+    if not _should_bootstrap_tuya(user_input):
+        return user_input, False
+    cached = _get_cached_tuya_context(DEFAULT_TUYA_SPACE_ID)
+    fresh = False
+    if cached is None:
+        cached = _refresh_tuya_context(DEFAULT_TUYA_SPACE_ID)
+        fresh = cached is not None
+    if not cached:
+        return user_input, False
+    context_text = _format_tuya_context(cached)
+    augmented = f"{context_text}\n\nUsuario: {user_input}"
+    return augmented, fresh
+
+
+def _resolve_device_identifier(identifier: Any) -> Any:
+    if not isinstance(identifier, str):
+        return identifier
+    trimmed = identifier.strip()
+    if not trimmed:
+        return identifier
+    lookup = _TUYA_CONTEXT_CACHE.get("device_lookup") or {}
+    normalized = _normalize_label(trimmed)
+    resolved = lookup.get(normalized)
+    if resolved:
+        return resolved
+    # Allow direct IDs pass-through
+    if trimmed in lookup.values():
+        return trimmed
+    return identifier
+
+
+def _resolve_scene_identifier(identifier: Any) -> Any:
+    if not isinstance(identifier, str):
+        return identifier
+    trimmed = identifier.strip()
+    if not trimmed:
+        return identifier
+    lookup = _TUYA_CONTEXT_CACHE.get("scene_lookup") or {}
+    normalized = _normalize_label(trimmed)
+    resolved = lookup.get(normalized)
+    if resolved:
+        return resolved
+    if trimmed in lookup.values():
+        return trimmed
+    return identifier
+
+_AUTOMATION_KEYWORDS: Sequence[str] = (
+    "automacao",
+    "automação",
+    "automation",
+    "cena",
+    "scene",
+    "smart plug",
+    "smartplug",
+    "tomada",
+    "tomadas",
+    "tuya",
+    "dispositivo",
+    "dispositivos",
+    "iluminacao",
+    "iluminação",
+    "luz",
+    "pluga",
+    "ligar",
+    "desligar",
+    "home automation",
+)
+
+_TUYA_CACHE_TTL_SECONDS = 180.0
+_TUYA_CONTEXT_CACHE: Dict[str, Any] = {
+    "space_id": None,
+    "payload": None,
+    "timestamp": 0.0,
+    "device_lookup": {},
+    "scene_lookup": {},
+}
 
 def _auto_date_range(args: dict) -> dict:
     tz = ZoneInfo("America/Sao_Paulo")
@@ -525,13 +684,6 @@ def initialize_chat():
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         system_prompt = get_system_prompt()
-        additions: list[str] = []
-        if TUYA_PROMPT_ADDITION:
-            additions.append(TUYA_PROMPT_ADDITION)
-        if FRIENDLY_PROMPT_ADDITION:
-            additions.append(FRIENDLY_PROMPT_ADDITION)
-        if additions:
-            system_prompt = "\n\n".join(filter(None, [system_prompt.rstrip(), *additions]))
         function_declarations = create_function_declarations()
 
         # Create the chat with tools and system instruction
@@ -622,6 +774,48 @@ def execute_function_call(function_call, *, powerstation_override: Optional[str]
     fallback_to_default = False
     used_powerstation_id = function_args.get("powerstation_id")
 
+    if function_name == "tuya_describe_space":
+        function_args["space_id"] = function_args.get("space_id") or DEFAULT_TUYA_SPACE_ID
+        # Serve from cache when possible to avoid repeated API calls
+        cached_payload = _get_cached_tuya_context(function_args.get("space_id"))
+        if cached_payload and not function_args.get("config_path"):
+            meta = {
+                "fallback_to_default": fallback_to_default,
+                "used_powerstation_id": used_powerstation_id,
+                "args_preview": _json_safe(function_args),
+                "result_preview": _json_safe(cached_payload),
+                "from_cache": True,
+            }
+            return cached_payload, meta["args_preview"], meta["result_preview"], meta
+
+    if function_name == "tuya_propose_automation":
+        function_args["space_id"] = function_args.get("space_id") or DEFAULT_TUYA_SPACE_ID
+        overrides = function_args.get("heuristic_overrides") or {}
+        if isinstance(overrides, dict):
+            resolved_overrides: Dict[str, Any] = {}
+            for key, params in overrides.items():
+                if isinstance(params, dict):
+                    resolved_params = dict(params)
+                    for override_key in ("inverter_device_id", "load_device_id", "sensor_device_id"):
+                        resolved_params[override_key] = _resolve_device_identifier(resolved_params.get(override_key))
+                    resolved_overrides[key] = resolved_params
+                else:
+                    resolved_overrides[key] = params
+            function_args["heuristic_overrides"] = resolved_overrides
+
+    if function_name in {"tuya_delete_automations", "tuya_set_automation_state"}:
+        rule_ids = function_args.get("rule_ids")
+        if isinstance(rule_ids, Sequence) and not isinstance(rule_ids, (str, bytes)):
+            resolved_rule_ids = []
+            for item in rule_ids:
+                resolved = _resolve_scene_identifier(item)
+                if resolved:
+                    resolved_rule_ids.append(resolved)
+            function_args["rule_ids"] = resolved_rule_ids
+
+    if function_name in {"tuya_update_automation", "tuya_trigger_scene"}:
+        if "rule_id" in function_args:
+            function_args["rule_id"] = _resolve_scene_identifier(function_args.get("rule_id"))
     if function_name in {
         "tuya_describe_space",
         "tuya_propose_automation",
@@ -648,6 +842,18 @@ def execute_function_call(function_call, *, powerstation_override: Optional[str]
                         used_powerstation_id = default_station
 
             result = function_map[function_name](**function_args)
+
+            if function_name == "tuya_describe_space":
+                target_space = function_args.get("space_id") or DEFAULT_TUYA_SPACE_ID
+                if isinstance(result, dict):
+                    _update_tuya_cache(target_space, result)
+            elif function_name in {
+                "tuya_create_and_enable_automation",
+                "tuya_update_automation",
+                "tuya_delete_automations",
+                "tuya_set_automation_state",
+            }:
+                _invalidate_tuya_cache()
 
             preview_args = _json_safe(function_args)
             preview_result = _json_safe(result)
@@ -697,7 +903,8 @@ async def call_geminiapi(user_input: str, *, powerstation_id: Optional[str] = No
             }
 
     try:
-        response = chat_instance.send_message(message=user_input)
+        augmented_input, _ = _augment_user_input_with_tuya_context(user_input)
+        response = chat_instance.send_message(message=augmented_input)
         function_executed = False
         executed_functions = []
         final_answer_chunks = []

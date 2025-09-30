@@ -248,7 +248,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'teve algum alerta na minha rede no ultimo mês?';
+  const question = 'teve algum alerta na minha estação Bauer no mês de agosto/2025 ?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
