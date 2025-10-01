@@ -1,14 +1,3 @@
-# Start with Node.js to build frontend
-FROM node:22-alpine AS frontend-builder
-
-WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm install
-
-COPY frontend/ ./
-RUN npm run build
-
-# Python application
 FROM python:3.13-alpine
 
 WORKDIR /app
@@ -27,11 +16,4 @@ COPY ./translations_normalized.json ./translations_normalized.json
 COPY ./data ./data
 COPY ./integrations ./integrations
 
-# Copy built frontend from previous stage
-COPY --from=frontend-builder /frontend/public ./frontend/public
-
-# Expose FastAPI port
-EXPOSE 8001
-
-# Start FastAPI server
-CMD ["python", "main.py"]
+CMD ["python", "-m", "integrations.tuya.bridge_soc"]
