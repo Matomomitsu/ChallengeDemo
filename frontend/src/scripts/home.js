@@ -140,7 +140,7 @@ function initCard1() {
       .then(() => fetchPromise)
       .then((payload) => {
         if (loadingEl) loadingEl.style.display = 'none';
-        if (typingEl) typingEl.textContent = '';
+//        if (typingEl) typingEl.textContent = '';
         const answer = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
         if (responseEl) {
           responseEl.textContent = 'Assistente: ' + sanitizeResponse(answer);
@@ -207,7 +207,7 @@ function initCard2() {
       .then(() => fetchPromise)
       .then((payload) => {
         if (loading) loading.style.display = 'none';
-        if (typing) typing.textContent = '';
+//        if (typing) typing.textContent = '';
         const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
         if (answer) {
           answer.textContent = 'Assistente: ' + sanitizeResponse(raw);
@@ -270,7 +270,7 @@ function initCard3() {
 
   function handleSuccess(payload, raw) {
     if (loading) loading.style.display = 'none';
-    if (typing) typing.textContent = '';
+//    if (typing) typing.textContent = '';
     const cleaned = sanitizeResponse(raw);
     if (answer) {
       answer.textContent = 'Assistente: ' + cleaned;
@@ -396,7 +396,7 @@ function initCard4() {
 
   function handleCard(payload, question, nextMode) {
     if (loading) loading.style.display = 'none';
-    if (typing) typing.textContent = '';
+//    if (typing) typing.textContent = '';
     const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
     if (answer) {
       answer.textContent = 'Assistente: ' + sanitizeResponse(raw);
