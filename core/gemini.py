@@ -29,9 +29,9 @@ load_dotenv(".env")
 
 # Global chat instance for maintaining conversation context
 chat_instance = None
-DEFAULT_STATION_NAME = "Bauer"
-DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
-DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID") 
+DEFAULT_STATION_NAME = "teste"
+DEFAULT_STATION_ID = "7f9af1fc-3a9a-4779-a4c0-ca6ec87bd93a"
+DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID")
 
 def _normalize_label(value: str) -> str:
     if not value:

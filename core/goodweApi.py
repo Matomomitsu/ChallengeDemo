@@ -53,7 +53,7 @@ class GoodweApi:
         if not self.TokenExpired():
             return self.token
 
-        url = 'https://eu.semsportal.com/api/v2/common/crosslogin'
+        url = 'https://us.semsportal.com/api/v2/common/crosslogin'
 
         original_string = '{"uid":"","timestamp":0,"token":"","client":"web","version":"","language":"en"}'
         bytes_data = original_string.encode('utf-8')
@@ -114,7 +114,7 @@ class GoodweApi:
         if not token:
             return None
 
-        url = 'https://eu.semsportal.com/api/PowerStationMonitor/QueryPowerStationMonitor'
+        url = 'https://us.semsportal.com/api/PowerStationMonitor/QueryPowerStationMonitor'
 
         headers = {
             'Token': token,
@@ -166,7 +166,7 @@ class GoodweApi:
         if not token:
             return None
 
-        url = 'https://eu.semsportal.com/api/v3/PowerStation/GetPlantDetailByPowerstationId'
+        url = 'https://us.semsportal.com/api/v3/PowerStation/GetPlantDetailByPowerstationId'
 
         headers = {
             'Token': token,
@@ -328,7 +328,7 @@ class GoodweApi:
         return d.strftime("%m/%d/%Y %H:%M:%S")
 
     def _eu(self) -> str:
-        return "https://eu.semsportal.com"
+        return "https://us.semsportal.com"
 
     def _get_translations(self):
         if self._translations is None:
@@ -515,7 +515,7 @@ class GoodweApi:
         if not token:
             return {"hasError": True, "msg": "No token"}
 
-        url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByDay"
+        url = f"https://us.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByDay"
 
         date = self.get_date(date)
 
@@ -564,7 +564,7 @@ class GoodweApi:
 
         date = self.get_date(date)
 
-        url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByMonth"
+        url = f"https://us.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByMonth"
 
         headers = {
             'Token': token,
@@ -611,7 +611,7 @@ class GoodweApi:
 
         date = self.get_date(date)
 
-        url = f"https://eu.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByYear"
+        url = f"https://us.semsportal.com/api/PowerStationMonitor/GetPowerStationPowerAndIncomeByYear"
 
         headers = {
             'Token': token,
@@ -695,3 +695,40 @@ class GoodweApi:
             return {"hasError": False, "msg": "Charging mode atualizado com sucesso"}
         else:
             return {"hasError": True, "msg": "Powerstation não encontrado"}
+
+
+    def GetPlantPowerChart(self, powerstation_id: str, date: str) -> dict:
+        """
+        Returns power chart data for the given day.
+        """
+
+        token = self.GetToken()
+        if not token:
+            return {"hasError": True, "msg": "No token"}
+
+        date = self.get_date(date)
+
+        url = f"https://us.semsportal.com/api/v2/Charts/GetPlantPowerChart"
+
+        headers = {
+            'Token': token,
+            'Content-Type': 'application/json',
+            'Accept': '*/*'
+        }
+
+        payload = {
+            "id": powerstation_id,
+            "full_script": False,
+            "date": date
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            powerChart = data.get("data", {})
+            print("Power chart data retrieved successfully!")
+            return {"powerChart": powerChart}
+        else:
+            print(f"Failed to retrieve power chart data with status code: {response.status_code}")
+            return {"hasError": True, "code": response.status_code, "msg": response.text}
