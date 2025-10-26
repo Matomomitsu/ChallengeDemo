@@ -101,7 +101,7 @@
 
     const defaultOption = document.createElement('option');
     defaultOption.value = '';
-    defaultOption.textContent = 'Usar planta padrão (Bauer)';
+    defaultOption.textContent = 'Usar planta padrão (demonstração)';
     plantSelect.appendChild(defaultOption);
 
     plants.forEach((plant) => {
@@ -244,7 +244,7 @@
     setFunctionsLoading();
 
     if (!selectedPlantId) {
-      setPlantStatus('Usando a planta padrão Bauer.');
+      setPlantStatus('Usando a planta padrão demonstração.');
     }
 
     const userTyping = typeInto(userBubble, 'Usuário: ', query, 18);
@@ -283,17 +283,17 @@
         }
         if (fallback && usedPowerstation) {
           finalAnswer = answer
-            ? `${answer}\n\n(Observação: não encontramos dados recentes para a planta selecionada. Voltamos para Bauer – powerstation_id ${usedPowerstation}.)`
-            : `Não encontramos dados recentes para a planta selecionada. Voltamos para Bauer – powerstation_id ${usedPowerstation}.`;
+            ? `${answer}\n\n(Observação: não encontramos dados recentes para a planta selecionada. Voltamos para demonstração – powerstation_id ${usedPowerstation}.)`
+            : `Não encontramos dados recentes para a planta selecionada. Voltamos para demonstração – powerstation_id ${usedPowerstation}.`;
         }
         if (plantStatus) {
           if (fallback) {
-            setPlantStatus('Sem dados recentes para a planta escolhida. Voltamos para Bauer.');
+            setPlantStatus('Sem dados recentes para a planta escolhida. Voltamos para demonstração.');
           } else if (selectedPlantId) {
             const label = getSelectedPlantLabel() || usedPowerstation || selectedPlantId;
             setPlantStatus(`Consultando dados da planta ${label}.`);
           } else {
-            setPlantStatus('Usando a planta padrão Bauer.');
+            setPlantStatus('Usando a planta padrão demonstração.');
           }
         }
         return typeInto(assistantBubble, 'Assistente: ', finalAnswer, 16).then(() => {
@@ -337,7 +337,7 @@
         const label = getSelectedPlantLabel();
         setPlantStatus(`Preparando respostas com dados da planta ${label}.`);
       } else {
-        setPlantStatus('Usando a planta padrão Bauer.');
+        setPlantStatus('Usando a planta padrão demonstração.');
       }
     });
     loadPlantOptions().catch(() => {});

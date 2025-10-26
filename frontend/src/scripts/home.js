@@ -215,7 +215,7 @@ function initCard2() {
         if (steps) {
           renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Entrada do usuário enviada: "' + question + '"');
           renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Workflow: Ativar modelo → Invocar ferramenta de otimização → Consolidar recomendações');
-          renderStep(steps, 'M3 6h18', 'Extração de dados: estação Bauer (parâmetros SOC e P_meter)');
+          renderStep(steps, 'M3 6h18', 'Extração de dados: estação demonstração (parâmetros SOC e P_meter)');
           renderStep(steps, 'M4 7h16M4 12h12', 'Normalização e análise: histórico de 7 dias com parâmetros reais minuto a minuto');
           renderStep(steps, 'M2 12h20', 'Endpoint chamado: /api/chat (POST)');
           renderStep(steps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi + usage_optimizer → recomendações úteis');
@@ -246,7 +246,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'teve algum alerta na minha estação Bauer no mês de agosto/2025 ?';
+  const question = 'teve algum alerta na minha estação demonstração no mês de agosto/2025 ?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -278,7 +278,7 @@ function initCard3() {
     if (steps) {
       renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Entrada enviada: "' + question + '"');
       renderStep(steps, 'M2 12h20', 'Endpoint: /api/chat (POST)');
-      renderStep(steps, 'M3 6h18', 'Dados consultados: inversor da rede Bauer');
+      renderStep(steps, 'M3 6h18', 'Dados consultados: inversor da rede demonstração');
       renderStep(steps, 'M4 7h16M4 12h12', 'P_meter minuto a minuto e SOC minuto a minuto');
       renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Análise estatística sobre médias e padrões (7 dias)');
       renderStep(steps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi + usage_optimizer → recomendações');
