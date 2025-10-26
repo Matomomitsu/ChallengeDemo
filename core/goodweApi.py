@@ -11,6 +11,7 @@ from core.cacheServices import CacheServices
 from dotenv import load_dotenv
 import sqlite3
 import uuid
+from collections.abc import Sized
 
 class GoodweApi:
     _instance = None
@@ -180,6 +181,14 @@ class GoodweApi:
 
         response = requests.post(url, data=payload, headers=headers)
 
+        result = response.json()
+        data = result.get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            response = requests.post(url, data=payload, headers=headers)
+
         if response.status_code == 200:
             details = response
             print("Plants retrieved successfully!")
@@ -219,6 +228,12 @@ class GoodweApi:
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
+            data = response.json().get("data")
+            if data is None or (isinstance(data, Sized) and len(data) == 0):
+                self.tokenExp = 0
+                token = self.GetToken()
+                headers['Token'] = token
+                response = requests.post(url, data=payload, headers=headers)
         except requests.RequestException as exc:
             return {"hasError": True, "msg": f"Request error: {exc}"}
 
@@ -395,6 +410,12 @@ class GoodweApi:
         headers = {"Token": token, "Content-Type": "application/json", "Accept": "application/json"}
         body = {"stationid": stationid, "warningid": warningid, "devicesn": devicesn}
         r = requests.post(url, json=body, headers=headers, timeout=20)
+        data = r.json().get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            r = requests.post(url, json=body, headers=headers)
         if r.status_code != 200 or not r.headers.get("content-type", "").startswith("application/json"):
             return {"hasError": True, "code": r.status_code, "msg": r.text}
         return r.json()
@@ -467,6 +488,27 @@ class GoodweApi:
                 headers=headers,
                 timeout=20
             )
+            data = r.json().get("data")
+            if data is None or (isinstance(data, Sized) and len(data) == 0):
+                self.tokenExp = 0
+                token = self.GetToken()
+                headers['Token'] = token
+                r = requests.post(
+                    url,
+                    json=self._alarms_payload(
+                        start_date=start_date,
+                        end_date=end_date,
+                        status=status,
+                        page_index=page_index,
+                        page_size=page_size,
+                        stationid=stationid or "",  # restrict if provided
+                        adcode="",
+                        device_types=device_types,
+                        searchKey=searchKey or ""
+                    ),
+                    headers=headers,
+                    timeout=20
+                )
             if r.status_code != 200 or not r.headers.get("content-type", "").startswith("application/json"):
                 break
             j = r.json() or {}
@@ -534,6 +576,13 @@ class GoodweApi:
 
         response = requests.post(url, json=payload, headers=headers)
 
+        data = response.json().get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            response = requests.post(url, data=payload, headers=headers)
+
         if response.status_code == 200:
             data = response.json()
             dateGeneration = data.get("data", [])
@@ -581,6 +630,13 @@ class GoodweApi:
 
         response = requests.post(url, json=payload, headers=headers)
 
+        data = response.json().get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            response = requests.post(url, data=payload, headers=headers)
+
         if response.status_code == 200:
             data = response.json()
             dateGeneration = data.get("data", [])
@@ -627,6 +683,13 @@ class GoodweApi:
         }
 
         response = requests.post(url, json=payload, headers=headers)
+
+        data = response.json().get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            response = requests.post(url, data=payload, headers=headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -723,6 +786,13 @@ class GoodweApi:
         }
 
         response = requests.post(url, json=payload, headers=headers)
+
+        data = response.json().get("data")
+        if data is None or (isinstance(data, Sized) and len(data) == 0):
+            self.tokenExp = 0
+            token = self.GetToken()
+            headers['Token'] = token
+            response = requests.post(url, data=payload, headers=headers)
 
         if response.status_code == 200:
             data = response.json()

@@ -6,6 +6,8 @@ import pymongo
 import datetime as _dt
 from typing import Dict, Any, List, Tuple, Set
 from core.goodweApi import GoodweApi
+from integrations.tuya import TuyaAutomationWorkflow
+from integrations.tuya import TuyaClient
 
 FIELD_MAP = {
     "PCurve_Power_PV": "PV",
@@ -106,6 +108,81 @@ class PlantPowerChart:
         key = (prev_dt.year, prev_dt.month, prev_dt.day, prev_dt.hour)
         return key in raw_presence
 
+    def _fetch_and_insert_devices_info(
+            self,
+            collection: pymongo.collection.Collection,
+            to_insert: List[Dict[str, Any]],
+    ) -> int:
+        if not to_insert:
+            return 0
+
+        devices_collection = collection.database["devicesInfo"]
+
+        try:
+            tuyaClient = TuyaClient(os.getenv("TUYA_CLIENT_ID"), os.getenv("TUYA_CLIENT_SECRET"))
+            tuyaAutomation = TuyaAutomationWorkflow(tuyaClient)
+            devices = tuyaAutomation.discover_devices(os.getenv("TUYA_SPACE_ID").split(","))
+            device_ids = [(d.get("id") if isinstance(d, dict) else getattr(d, "id", None)) for d in devices]
+            device_ids = [did for did in device_ids if did]
+            device_properties = tuyaAutomation.inspect_properties(device_ids=device_ids) if device_ids else {}
+        except Exception as e:
+            print(f"Warning: erro ao obter dispositivos: {e}")
+            devices = []
+            device_ids = []
+            device_properties = {}
+
+        devices_by_id = {}
+        for d in devices:
+            dev_id = d.get("id") if isinstance(d, dict) else getattr(d, "id", None)
+            if dev_id:
+                devices_by_id[dev_id] = d
+
+        devices_summary = []
+        for dev_id in device_ids:
+            dev = devices_by_id.get(dev_id)
+            props_payload = (device_properties.get(dev_id) or {}) if isinstance(device_properties, dict) else {}
+            props_simple = {}
+            for code, prop in props_payload.items():
+                val = getattr(prop, "value", None) if hasattr(prop, "value") or hasattr(prop, "__dict__") else None
+                if val is None and isinstance(prop, dict):
+                    val = prop.get("value")
+                props_simple[code] = val
+
+            devices_summary.append({
+                "id": dev_id,
+                "productId": (getattr(dev, "productId", None) if dev is not None and not isinstance(dev, dict)
+                              else dev.get("productId") if isinstance(dev, dict) else None),
+                "category": (getattr(dev, "category", None) if dev is not None and not isinstance(dev, dict)
+                             else dev.get("category") if isinstance(dev, dict) else None),
+                "name": (getattr(dev, "name", None) if dev is not None and not isinstance(dev, dict)
+                         else dev.get("name") if isinstance(dev, dict) else None),
+                "isOnline": (getattr(dev, "isOnline", None) if dev is not None and not isinstance(dev, dict)
+                             else dev.get("isOnline") if isinstance(dev, dict) else None),
+                "properties": props_simple,
+            })
+
+        if not devices_summary:
+            return 0
+
+        # usar maior timestamp presente em to_insert como timestamp do snapshot
+        try:
+            snapshot_ts = max(doc["timestamp"] for doc in to_insert)
+        except Exception:
+            snapshot_ts = datetime.utcnow()
+
+        devices_doc = {
+            "timestamp": snapshot_ts,
+            "devices": devices_summary,
+            "inserted_at": datetime.utcnow(),
+        }
+
+        try:
+            devices_collection.insert_one(devices_doc)
+            return 1
+        except Exception as e:
+            print(f"Warning: erro ao inserir devicesInfo: {e}")
+            return 0
+
     def fetch_and_insert(self, powerstation_id: str, date_str: str, collection: pymongo.collection.Collection) -> int:
         try:
             base_date = date.fromisoformat(date_str)
@@ -162,6 +239,8 @@ class PlantPowerChart:
 
         if to_insert:
             collection.insert_many(to_insert)
+            self._fetch_and_insert_devices_info(collection, to_insert)
+
         return len(to_insert)
 
     def fetch_and_insert_days(self, powerstation_id: str, end_date_str: str, days: int, collection: pymongo.collection.Collection) -> int:
