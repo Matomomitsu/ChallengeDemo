@@ -328,7 +328,7 @@ function initCard3() {
   if (followUpBtn) {
     followUpBtn.addEventListener('click', (event) => {
       event.preventDefault();
-      const followQuestion = 'Me explique melhor esse primeiro erro';
+      const followQuestion = 'Me explique melhor o primeiro erro retornado';
       if (loading) loading.style.display = 'block';
       const stack = typing ? typing.parentNode : null;
       if (stack) {
