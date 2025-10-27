@@ -175,6 +175,8 @@ class PlantPowerChart:
                              else dev.get("category") if isinstance(dev, dict) else None),
                 "name": (getattr(dev, "name", None) if dev is not None and not isinstance(dev, dict)
                          else dev.get("name") if isinstance(dev, dict) else None),
+                "customName": (getattr(dev, "customName", None) if dev is not None and not isinstance(dev, dict)
+                               else dev.get("customName") if isinstance(dev, dict) else None),
                 "isOnline": (getattr(dev, "isOnline", None) if dev is not None and not isinstance(dev, dict)
                              else dev.get("isOnline") if isinstance(dev, dict) else None),
                 "properties": props_simple,

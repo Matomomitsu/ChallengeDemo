@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 from collections import defaultdict
 from datetime import datetime, date, time, timedelta
 from dotenv import load_dotenv
@@ -6,6 +8,10 @@ import pymongo
 import datetime as _dt
 from typing import Dict, Any, List, Tuple, Set
 from core.goodweApi import GoodweApi
+from integrations.tuya import TuyaAutomationWorkflow
+from integrations.tuya import TuyaClient
+from zoneinfo import ZoneInfo
+from integrations.tuya.ai_tools import _build_workflow
 
 if __name__ == "__main__":
     load_dotenv(".env")
@@ -13,21 +19,17 @@ if __name__ == "__main__":
     host = os.getenv("MONGO_URI")
     client = pymongo.MongoClient(host)
     db = client["fiap_challenge"]
-    collection = db["hourly_data"]
+    collection = db["scenes_sugestions"]
 
     api = GoodweApi()
 
-    import time as _time
+    space_id = os.getenv("TUYA_SPACE_ID")
 
-    while True:
-        try:
-            date_str = str(_dt.date.today())
-            print(f"Inserted {inserted} hourly documents for last 5 days ending {date_str}")
-        except Exception as e:
-            print(f"Error during fetch: {e}")
+    tuyaAutomation, _ = _build_workflow()
+    scenes = tuyaAutomation.list_scenes(space_id)
+    devices = tuyaAutomation.discover_devices(space_id.split(","))
+    device_ids = [(d.get("id") if isinstance(d, dict) else getattr(d, "id", None)) for d in devices]
+    device_ids = [did for did in device_ids if did]
+    device_properties = tuyaAutomation.inspect_properties(device_ids=device_ids) if device_ids else {}
+    print(f"Discovered {len(devices)} devices with properties for space {space_id}")
 
-        now = datetime.now()
-        next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        sleep_seconds = (next_hour - now).total_seconds()
-        print("Sleeping for %.2f seconds until %s" % (sleep_seconds, next_hour.isoformat()))
-        _time.sleep(max(0, sleep_seconds))
