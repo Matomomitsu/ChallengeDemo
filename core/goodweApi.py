@@ -710,7 +710,7 @@ class GoodweApi:
         """
 
         if powerstation_id is None or powerstation_id.strip() == "":
-            powerstation_id = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
+            powerstation_id = "7f9af1fc-3a9a-4779-a4c0-ca6ec87bd93a"
         conn = sqlite3.connect('./data/sqlite.db')
         cursor = conn.cursor()
 
