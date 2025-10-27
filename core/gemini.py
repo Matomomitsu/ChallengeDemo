@@ -376,7 +376,7 @@ def create_function_declarations():
     get_powerstation_battery_status = types.FunctionDeclaration(
         name="get_powerstation_battery_status",
         description=(
-            "Retorna o status da bateria. Se 'powerstation_id' não for informado, use a planta padrão (ex.: Bauer). "
+            "Retorna o status da bateria. Se 'powerstation_id' não for informado, use a planta padrão (ex.: demonstração). "
             "Não peça para o usuário escolher a planta a menos que ele solicite explicitamente trocar de planta. "
             "No retorno: status 2=descarregando, 1=carregando, 0=desligada/desconectada."
         ),

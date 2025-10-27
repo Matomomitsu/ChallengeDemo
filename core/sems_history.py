@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from .goodweApi import GoodweApi
 
 # Defaults aligned with current project usage
-DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"  # Bauer
-DEFAULT_INVERTER_SN = "5010KETU229W6177"  # Bauer
+DEFAULT_STATION_ID = "7f9af1fc-3a9a-4779-a4c0-ca6ec87bd93a"  # Demonstração
+DEFAULT_INVERTER_SN = "53600ERN238W0001"  # Demonstração
 
 
 def _format_portal_ts(dt: datetime) -> str:
