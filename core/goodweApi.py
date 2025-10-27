@@ -440,7 +440,7 @@ class GoodweApi:
             stationname: str = None,  # OPTIONAL: post-filter by station name (exact, case-insensitive)
             stationid: str = "",  # OPTIONAL: restrict query to a specific station id
             device_types=None,  # [] or ["Total_DeviceType_inverter"] (kept for parity; default empty)
-            page_size: int = 100,
+            page_size: int = 10,
             searchKey: str = ""
     ):
         """
@@ -449,6 +449,10 @@ class GoodweApi:
 
         Returns: {"total": int, "items": [normalized...]}
         """
+
+        if (page_size > 10):
+            page_size = 10
+
         token = self.GetToken()
         if not token:
             return {"total": 0, "items": []}
