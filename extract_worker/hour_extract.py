@@ -168,12 +168,12 @@ class PlantPowerChart:
         try:
             snapshot_ts = max(doc["timestamp"] for doc in to_insert)
         except Exception:
-            snapshot_ts = datetime.utcnow()
+            snapshot_ts = datetime.now(_dt.timezone.utc)
 
         devices_doc = {
             "timestamp": snapshot_ts,
             "devices": devices_summary,
-            "inserted_at": datetime.utcnow(),
+            "inserted_at": datetime.now(_dt.timezone.utc),
         }
 
         try:
