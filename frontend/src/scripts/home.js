@@ -246,7 +246,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'Teve algum alerta na minha estação demonstração no mês de outubro/2025 ?';
+  const question = 'Teve algum alerta nas minhas estações no mês de outubro/2025 ?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
