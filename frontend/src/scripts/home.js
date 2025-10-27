@@ -112,7 +112,7 @@ function initCard1() {
   const explainSteps = document.getElementById('explain-steps');
   const explainStats = document.getElementById('explain-stats');
   const trigger = document.getElementById('testar-funcao-1');
-  const question = 'qual o status da minha bateria';
+  const question = 'Qual o status da minha bateria';
 
   function toggleExplainPanel(event) {
     if (event) event.preventDefault();
@@ -178,7 +178,7 @@ function initCard2() {
   const toggle = document.getElementById('toggle-explain-2');
   const panel = document.getElementById('explain-panel-2');
   const trigger = document.getElementById('testar-funcao-2');
-  const question = 'otimize meu uso';
+  const question = 'Otimize meu uso';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -246,7 +246,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'teve algum alerta na minha estação demonstração no mês de agosto/2025 ?';
+  const question = 'Teve algum alerta na minha estação demonstração no mês de outubro/2025 ?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -328,7 +328,7 @@ function initCard3() {
   if (followUpBtn) {
     followUpBtn.addEventListener('click', (event) => {
       event.preventDefault();
-      const followQuestion = 'me explique melhor esse primeiro erro';
+      const followQuestion = 'Me explique melhor esse primeiro erro';
       if (loading) loading.style.display = 'block';
       const stack = typing ? typing.parentNode : null;
       if (stack) {
