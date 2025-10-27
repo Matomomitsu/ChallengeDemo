@@ -290,7 +290,8 @@ if __name__ == "__main__":
 
     while True:
         try:
-            date_str = str(_dt.date.today())
+            now = datetime.now(LOCAL_TZ)
+            date_str = now.date().isoformat()
             inserted = charter.fetch_and_insert_days(
                 os.getenv("DEFAULT_POWERSTATION_ID"),
                 date_str,
@@ -301,7 +302,7 @@ if __name__ == "__main__":
         except Exception:
             logger.exception("Error during fetch")
 
-        now = datetime.now()
+        now = datetime.now(LOCAL_TZ)
         next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         sleep_seconds = (next_hour - now).total_seconds()
         logger.info("Sleeping for %.2f seconds until %s", sleep_seconds, next_hour.isoformat())
