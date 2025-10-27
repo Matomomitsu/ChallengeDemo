@@ -41,8 +41,8 @@ class PlantListResponse(BaseModel):
 # (removed) CSV-based solar query request schema
 
 goodwe_api = GoodweApi()
-DEFAULT_STATION_NAME = "Bauer"
-DEFAULT_STATION_ID = "6ef62eb2-7959-4c49-ad0a-0ce75565023a"
+DEFAULT_STATION_NAME = os.getenv("DEFAULT_STATION_NAME")
+DEFAULT_STATION_ID = os.getenv("DEFAULT_STATION_ID")
 
 # Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
