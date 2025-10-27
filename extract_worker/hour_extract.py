@@ -11,6 +11,13 @@ from typing import Dict, Any, List, Tuple, Set
 from core.goodweApi import GoodweApi
 from integrations.tuya import TuyaAutomationWorkflow
 from integrations.tuya import TuyaClient
+from zoneinfo import ZoneInfo
+
+APP_TZ = os.getenv("APP_TZ", "America/Sao_Paulo")
+try:
+    LOCAL_TZ = ZoneInfo(APP_TZ)
+except Exception:
+    LOCAL_TZ = ZoneInfo("UTC")
 
 log_level = os.getenv("TUYA_SOC_LOG_LEVEL", "INFO").upper()
 logger = logging.getLogger("hour_extract")
@@ -201,8 +208,8 @@ class PlantPowerChart:
         except Exception:
             base_date = date.today()
 
-        day_start = datetime.combine(base_date, time(0, 0, 0))
-        day_end = datetime.combine(base_date, time(23, 59, 59, 999999))
+        day_start = datetime.combine(base_date, time(0, 0, 0)).replace(tzinfo=LOCAL_TZ)
+        day_end = datetime.combine(base_date, time(23, 59, 59, 999999)).replace(tzinfo=LOCAL_TZ)
 
         last_docs = list(
             collection.find({"timestamp": {"$gte": day_start, "$lte": day_end}})
