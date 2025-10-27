@@ -191,15 +191,23 @@ class PlantPowerChart:
         except Exception:
             snapshot_ts = datetime.now(_dt.timezone.utc)
 
-        devices_doc = {
-            "timestamp": snapshot_ts,
-            "devices": devices_summary,
-            "inserted_at": datetime.now(_dt.timezone.utc),
-        }
+        device_docs = []
+        for dev in devices_summary:
+            device_docs.append({
+                "timestamp": snapshot_ts,
+                "deviceId": dev.get("id"),
+                "productId": dev.get("productId"),
+                "category": dev.get("category"),
+                "name": dev.get("name"),
+                "customName": dev.get("customName"),
+                "isOnline": dev.get("isOnline"),
+                "properties": dev.get("properties"),
+                "inserted_at": datetime.now(_dt.timezone.utc),
+            })
 
         try:
-            devices_collection.insert_one(devices_doc)
-            return 1
+            result = devices_collection.insert_many(device_docs)
+            return len(result.inserted_ids) if result and getattr(result, "inserted_ids", None) is not None else 0
         except Exception as e:
             self.logger.warning("erro ao inserir devicesInfo: %s", e)
             return 0
