@@ -1,4 +1,7 @@
+# python
 import os
+import sys
+import logging
 from collections import defaultdict
 from datetime import datetime, date, time, timedelta
 from dotenv import load_dotenv
@@ -8,6 +11,14 @@ from typing import Dict, Any, List, Tuple, Set
 from core.goodweApi import GoodweApi
 from integrations.tuya import TuyaAutomationWorkflow
 from integrations.tuya import TuyaClient
+
+log_level = os.getenv("TUYA_SOC_LOG_LEVEL", "INFO").upper()
+logger = logging.getLogger("hour_extract")
+logger.setLevel(getattr(logging, log_level, logging.INFO))
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+logger.handlers = [handler]
+logger.propagate = False
 
 FIELD_MAP = {
     "PCurve_Power_PV": "PV",
@@ -20,6 +31,7 @@ FIELD_MAP = {
 class PlantPowerChart:
     def __init__(self, api_client: Any):
         self.api = api_client
+        self.logger = logger.getChild(self.__class__.__name__)
 
     def _normalize_powerchart(self, api_result: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(api_result, dict):
@@ -126,7 +138,7 @@ class PlantPowerChart:
             device_ids = [did for did in device_ids if did]
             device_properties = tuyaAutomation.inspect_properties(device_ids=device_ids) if device_ids else {}
         except Exception as e:
-            print(f"Warning: erro ao obter dispositivos: {e}")
+            self.logger.warning("erro ao obter dispositivos: %s", e)
             devices = []
             device_ids = []
             device_properties = {}
@@ -180,7 +192,7 @@ class PlantPowerChart:
             devices_collection.insert_one(devices_doc)
             return 1
         except Exception as e:
-            print(f"Warning: erro ao inserir devicesInfo: {e}")
+            self.logger.warning("erro ao inserir devicesInfo: %s", e)
             return 0
 
     def fetch_and_insert(self, powerstation_id: str, date_str: str, collection: pymongo.collection.Collection) -> int:
@@ -278,12 +290,12 @@ if __name__ == "__main__":
                 days=6,
                 collection=collection,
             )
-            print(f"Inserted {inserted} hourly documents for last 5 days ending {date_str}")
-        except Exception as e:
-            print(f"Error during fetch: {e}")
+            logger.info("Inserted %d hourly documents for last 5 days ending %s", inserted, date_str)
+        except Exception:
+            logger.exception("Error during fetch")
 
         now = datetime.now()
         next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         sleep_seconds = (next_hour - now).total_seconds()
-        print("Sleeping for %.2f seconds until %s" % (sleep_seconds, next_hour.isoformat()))
+        logger.info("Sleeping for %.2f seconds until %s", sleep_seconds, next_hour.isoformat())
         _time.sleep(max(0, sleep_seconds))
