@@ -1,3 +1,4 @@
+import asyncio
 from google import genai
 from google.genai import types
 import json
@@ -15,6 +16,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from integrations.tuya.ai_tools import (
+    build_scene_payload_from_instructions,
     create_and_enable_automation,
     delete_automations,
     describe_space,
@@ -27,11 +29,84 @@ from integrations.tuya.ai_tools import (
 
 load_dotenv(".env")
 
+_RETRYABLE_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+_MAX_GEMINI_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "3"))
+_BASE_RETRY_DELAY_SECONDS = float(os.getenv("GEMINI_RETRY_BASE_DELAY", "1.0"))
+
 # Global chat instance for maintaining conversation context
 chat_instance = None
 DEFAULT_STATION_NAME = "teste"
 DEFAULT_STATION_ID = "7f9af1fc-3a9a-4779-a4c0-ca6ec87bd93a"
 DEFAULT_TUYA_SPACE_ID = os.getenv("TUYA_SPACE_ID")
+
+def _extract_status_code(error: Exception) -> Optional[int]:
+    if hasattr(error, "code"):
+        code = getattr(error, "code")
+        if isinstance(code, int):
+            return code
+        if isinstance(code, str) and code.isdigit():
+            return int(code)
+    if hasattr(error, "status_code"):
+        status_code = getattr(error, "status_code")
+        if isinstance(status_code, int):
+            return status_code
+    if hasattr(error, "response"):
+        response = getattr(error, "response")
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            return status
+    message = str(error)
+    match = re.search(r"\b(\d{3})\b", message)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+    return None
+
+
+def _is_retryable_gemini_error(error: Exception) -> bool:
+    status_code = _extract_status_code(error)
+    if status_code in _RETRYABLE_STATUS_CODES:
+        return True
+    message = str(error).upper()
+    retryable_tokens = (
+        "UNAVAILABLE",
+        "MODEL IS OVERLOADED",
+        "TRY AGAIN LATER",
+        "RATE_LIMIT",
+        "OVERLOADED",
+        "TIMEOUT",
+    )
+    return any(token in message for token in retryable_tokens)
+
+
+async def _send_gemini_message_with_retry(message: Any, *, allow_recreate: bool = False) -> Any:
+    global chat_instance
+    last_error: Optional[Exception] = None
+    if chat_instance is None:
+        raise RuntimeError("Gemini chat instance is not initialised.")
+
+    for attempt in range(1, _MAX_GEMINI_RETRIES + 1):
+        try:
+            return chat_instance.send_message(message=message)
+        except Exception as error:  # pragma: no cover - network failure
+            last_error = error
+            if attempt >= _MAX_GEMINI_RETRIES or not _is_retryable_gemini_error(error):
+                raise
+            delay = _BASE_RETRY_DELAY_SECONDS * (2 ** (attempt - 1))
+            print(
+                f"⚠️ Gemini call failed (attempt {attempt}/{_MAX_GEMINI_RETRIES}) with retryable error: {error}. "
+                f"Retrying in {delay:.1f}s."
+            )
+            await asyncio.sleep(delay)
+            if allow_recreate:
+                if not initialize_chat():
+                    break
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Gemini request failed without raising an exception.")
 
 def _normalize_label(value: str) -> str:
     if not value:
@@ -578,7 +653,7 @@ def create_function_declarations():
                 "space_id": types.Schema(type=types.Type.STRING, description="Opcional: ID do espaço Tuya (usa padrão configurado se ausente)."),
                 "heuristic_set": types.Schema(
                     type=types.Type.ARRAY,
-                    description="Opcional: subconjunto das heurísticas (battery_protect, solar_surplus, night_guard).",
+                    description="Opcional: subconjunto das heurísticas (battery_protect, battery_surplus, solar_surplus, night_guard).",
                     items=types.Schema(type=types.Type.STRING),
                 ),
                 "config_path": types.Schema(type=types.Type.STRING, description="Opcional: caminho alternativo para automation.yaml."),
@@ -590,6 +665,44 @@ def create_function_declarations():
         ),
     )
     functions.append(tuya_propose_automation)
+
+    tuya_build_scene_payload = types.FunctionDeclaration(
+        name="tuya_build_scene_payload",
+        description=(
+            "Gerar um payload personalizado de automação ou tap-to-run para o Tuya Cloud a partir de instruções em linguagem natural."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "instructions": types.Schema(
+                    type=types.Type.STRING,
+                    description="Descrição da automação desejada, incluindo condição e ações.",
+                ),
+                "space_id": types.Schema(
+                    type=types.Type.STRING,
+                    description="Opcional. ID do espaço Tuya (usa o padrão se ausente).",
+                ),
+                "name_hint": types.Schema(
+                    type=types.Type.STRING,
+                    description="Opcional. Nome sugerido para a nova automação.",
+                ),
+                "decision_expr_hint": types.Schema(
+                    type=types.Type.STRING,
+                    description="Opcional. Expressão booleana obrigatória (ex.: 'and', 'or', 'c1&c2').",
+                ),
+                "effective_time_hint": types.Schema(
+                    type=types.Type.OBJECT,
+                    description="Opcional. Intervalo de vigência sugerido, incluindo start/end/loops/time_zone_id.",
+                ),
+                "type_hint": types.Schema(
+                    type=types.Type.STRING,
+                    description="Opcional. Tipo da regra ('automation' ou 'scene').",
+                ),
+            },
+            required=["instructions"],
+        ),
+    )
+    functions.append(tuya_build_scene_payload)
 
     tuya_create_and_enable_automation = types.FunctionDeclaration(
         name="tuya_create_and_enable_automation",
@@ -752,6 +865,7 @@ def execute_function_call(function_call, *, powerstation_override: Optional[str]
         "tuya_describe_space": describe_space,
         "tuya_inspect_device": inspect_device,
         "tuya_propose_automation": propose_automation,
+        "tuya_build_scene_payload": build_scene_payload_from_instructions,
         "tuya_create_and_enable_automation": create_and_enable_automation,
         "tuya_update_automation": update_automation,
         "tuya_delete_automations": delete_automations,
@@ -904,7 +1018,7 @@ async def call_geminiapi(user_input: str, *, powerstation_id: Optional[str] = No
 
     try:
         augmented_input, _ = _augment_user_input_with_tuya_context(user_input)
-        response = chat_instance.send_message(message=augmented_input)
+        response = await _send_gemini_message_with_retry(augmented_input)
         function_executed = False
         executed_functions = []
         final_answer_chunks = []
@@ -950,7 +1064,7 @@ async def call_geminiapi(user_input: str, *, powerstation_id: Optional[str] = No
                         final_answer_chunks.append(part.text)
 
             if has_function_call and function_response_parts:
-                response = chat_instance.send_message(message=function_response_parts)
+                response = await _send_gemini_message_with_retry(function_response_parts)
             else:
                 break
 

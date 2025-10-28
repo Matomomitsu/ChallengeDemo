@@ -129,12 +129,18 @@ def _auto_date_range(args: dict) -> dict:
     return args
 
 def get_system_prompt():
-    """Load system prompt from file"""
-    try:
-        with open("./report/scenes_description.txt", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "You are BotSolar, an assistant for solar generation and battery management."
+    """Load system prompt from shared Tuya scene builder template."""
+    candidate_paths = [
+        "./configs/tuya_scene_builder_prompt.txt",
+        "./report/scenes_description.txt",
+    ]
+    for path in candidate_paths:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            continue
+    return "You are BotSolar, an assistant for solar generation and battery management."
 
 def create_function_declarations():
     """Create all function declarations for both solar and battery tools"""
