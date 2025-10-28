@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from api.endpoints import chat_endpoint, goodwe_api, DEFAULT_STATION_ID, DEFAULT_STATION_NAME
+from core.alexa_fastpath import try_handle_fastpath
 
 
 
@@ -41,6 +42,10 @@ async def alexa_endpoint(req: dict):
 
             if not user_input:
                 return build_alexa_response("Não entendi o que você disse.", end_session=False)
+
+            fastpath_response = await try_handle_fastpath(user_input)
+            if fastpath_response:
+                return build_alexa_response(fastpath_response, end_session=True)
 
             # Trata a entrada do usuário
             class ChatRequest:
