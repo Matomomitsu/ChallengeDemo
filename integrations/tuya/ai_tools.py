@@ -5,6 +5,7 @@ import os
 import re
 import time
 from typing import Any, Dict, Iterable, List, Optional
+from threading import Lock
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,9 @@ from core.tuya_scene_builder import (
 _REDACT_KEYS = {"client_secret", "access_token", "localKey"}
 _SCENE_CONTEXT_TTL_SECONDS = int(os.getenv("TUYA_SCENE_CONTEXT_TTL", "60"))
 _SCENE_BUILDER_CACHE: Dict[str, Dict[str, Any]] = {}
+_TUYA_CLIENT_LOCK = Lock()
+_SHARED_TUYA_CLIENT: Optional[TuyaClient] = None
+_SHARED_WORKFLOW: Optional[TuyaAutomationWorkflow] = None
 
 
 def _redact(data: Any) -> Any:
@@ -225,17 +229,45 @@ def _normalize_heuristic_params(params: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def _build_workflow(config_path: Optional[str] = None) -> tuple[TuyaAutomationWorkflow, Dict[str, Any]]:
-    load_dotenv(".env")
-    client_id = os.getenv("TUYA_CLIENT_ID")
-    client_secret = os.getenv("TUYA_CLIENT_SECRET")
-    if not client_id or not client_secret:
-        raise RuntimeError("Tuya credentials not configured")
+def _get_shared_workflow() -> TuyaAutomationWorkflow:
+    global _SHARED_TUYA_CLIENT, _SHARED_WORKFLOW
+    if _SHARED_WORKFLOW is not None:
+        return _SHARED_WORKFLOW
 
-    base_url = os.getenv("TUYA_API_BASE_URL", DEFAULT_TUYA_API_BASE_URL)
-    workflow = TuyaAutomationWorkflow(TuyaClient(client_id=client_id, client_secret=client_secret, base_url=base_url))
+    with _TUYA_CLIENT_LOCK:
+        if _SHARED_WORKFLOW is not None:
+            return _SHARED_WORKFLOW
+
+        load_dotenv(".env")
+        client_id = os.getenv("TUYA_CLIENT_ID")
+        client_secret = os.getenv("TUYA_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise RuntimeError("Tuya credentials not configured")
+
+        base_url = os.getenv("TUYA_API_BASE_URL", DEFAULT_TUYA_API_BASE_URL)
+        _SHARED_TUYA_CLIENT = TuyaClient(
+            client_id=client_id,
+            client_secret=client_secret,
+            base_url=base_url,
+        )
+        _SHARED_WORKFLOW = TuyaAutomationWorkflow(_SHARED_TUYA_CLIENT)
+        return _SHARED_WORKFLOW
+
+
+def _build_workflow(config_path: Optional[str] = None) -> tuple[TuyaAutomationWorkflow, Dict[str, Any]]:
+    workflow = _get_shared_workflow()
     config = load_automation_config(config_path) if config_path else {}
     return workflow, config
+
+
+def prewarm_tuya_caches(space_id: Optional[str]) -> None:
+    if not space_id:
+        return
+    try:
+        workflow = _get_shared_workflow()
+        _get_scene_builder_context(workflow, space_id)
+    except Exception as exc:  # pragma: no cover - network issues
+        print(f"⚠️ Could not prewarm Tuya caches for space {space_id}: {exc}")
 
 
 def _get_scene_builder_context(
@@ -256,11 +288,7 @@ def _get_scene_builder_context(
         {
             "id": device.id,
             "friendly_name": (device.customName or device.name or "").strip() or "Dispositivo",
-            "name": device.name,
-            "customName": device.customName,
             "category": device.category,
-            "productId": device.productId,
-            "isOnline": device.isOnline,
         }
         for device in devices
     ]

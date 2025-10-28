@@ -25,7 +25,9 @@ from integrations.tuya.ai_tools import (
     set_automation_state,
     trigger_scene,
     update_automation,
+    prewarm_tuya_caches,
 )
+from core.tuya_scene_builder import prewarm_scene_builder
 
 load_dotenv(".env")
 
@@ -807,6 +809,16 @@ def initialize_chat():
                 tools=[types.Tool(function_declarations=function_declarations)]
             )
         )
+        if DEFAULT_TUYA_SPACE_ID:
+            try:
+                prewarm_tuya_caches(DEFAULT_TUYA_SPACE_ID)
+                _refresh_tuya_context(DEFAULT_TUYA_SPACE_ID)
+            except Exception as exc:  # pragma: no cover - network failures
+                print(f"⚠️ Could not prewarm Tuya context: {exc}")
+        try:
+            prewarm_scene_builder()
+        except Exception as exc:  # pragma: no cover - network failures
+            print(f"⚠️ Could not prewarm scene builder: {exc}")
         return True
     except Exception as e:
         print(f"❌ Error initializing chat: {e}")
