@@ -1,0 +1,17 @@
+---
+# Optional device-specific DP/function mapping overrides.
+# Use this file to pin logical keys to actual DP codes for a specific device id.
+# The heuristics and mapping layer will consult this file automatically if present.
+
+# Example structure:
+# device_properties:
+#   2655b6c92c0586a4a5cx6f:  # inverter id
+#     battery_soc: "Bateria"
+#     pv_power: "Producao_Solar_Atual"
+# device_functions:
+#   ebd347162e7b2c35d2kxwn:  # AC or bulb id
+#     switch: "switch_led"
+
+device_properties: {}
+device_functions: {}
+

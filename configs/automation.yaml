@@ -1,0 +1,76 @@
+# Sample automation configuration for Tuya scenes.
+space_id: ""
+time_zone_id: "America/Sao_Paulo"
+enabled_heuristics:
+  - battery_protect
+  - battery_surplus
+  - solar_surplus
+  - night_guard
+  - solar_deficit
+heuristics:
+  battery_protect:
+    name: "Battery < 90 disables smart plug"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    threshold: 90
+    comparator: "<"
+    switch_value: false
+    property_codes:
+      battery_soc: "Bateria"
+    function_codes:
+      switch: "switch_led"
+  battery_surplus:
+    name: "Battery > 90 liga ar condicionado"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebd347162e7b2c35d2kxwn"
+    threshold: 90
+    comparator: ">"
+    switch_value: true
+    property_codes:
+      battery_soc: "Bateria"
+    function_codes:
+      switch: "switch_led"
+  solar_surplus:
+    name: "Solar surplus turns plug on"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    pv_threshold_w: 800
+    comparator: ">"
+    switch_value: true
+    property_codes:
+      pv_power: "Producao_Solar_Atual"
+    function_codes:
+      switch: "switch_led"
+    extra_actions:
+      - entity_id: "ebf1ba448c3a44a4173x5y"
+        function_code: "switch_led"
+        function_value: true
+  night_guard:
+    name: "Night guard turns plug off"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    comparator: "=="
+    status_value: 0
+    switch_value: false
+    start: "18:00"
+    end: "06:00"
+    loops: "1111111"
+    property_codes:
+      pv_power: "Producao_Solar_Atual"
+    function_codes:
+      switch: "switch_led"
+  solar_deficit:
+    name: "Solar deficit turns plug off"
+    inverter_device_id: "2655b6c92c0586a4a5cx6f"
+    load_device_id: "ebf1ba448c3a44a4173x5y"
+    comparator: "<"
+    threshold: 800
+    switch_value: false
+    property_codes:
+      pv_power: "Producao_Solar_Atual"
+    function_codes:
+      switch: "switch_led"
+    extra_actions:
+      - entity_id: "ebf1ba448c3a44a4173x5y"
+        function_code: "switch_led"
+        function_value: false

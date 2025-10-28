@@ -1,0 +1,9 @@
+{
+  "logo": {
+    "url": "#",
+    "label": "Assistente solar"
+  },
+  "links": [
+    { "href": "/sobre/", "label": "Sobre" }
+  ]
+}
