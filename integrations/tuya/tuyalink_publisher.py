@@ -48,6 +48,8 @@ class TuyaLinkPublisher:
         self._max_backoff = max(self._min_backoff, max_backoff)
         self._current_backoff = self._min_backoff
         self._loop_running = False
+        self._reconnect_thread: threading.Thread | None = None
+        self._stop_reconnect = threading.Event()
 
         if not self.dry_run:
             self._init_client()
@@ -99,10 +101,12 @@ class TuyaLinkPublisher:
                         backoff,
                     )
                     self._client.connect(self.host, self.port, keepalive=self.keepalive)
-                    self._client.loop_start()
-                    self._loop_running = True
+                    if not self._loop_running:
+                        self._client.loop_start()
+                        self._loop_running = True
                     if self._connected.wait(timeout=15):
                         self._current_backoff = self._min_backoff
+                        self._stop_reconnect.set()
                         return
                     raise TimeoutError("Timed out waiting for TuyaLink MQTT connection")
                 except Exception as exc:  # pylint: disable=broad-except
@@ -122,8 +126,40 @@ class TuyaLinkPublisher:
     def _on_disconnect(self, client: mqtt.Client, userdata, rc):  # type: ignore[override]
         self._connected.clear()
         if rc != mqtt.MQTT_ERR_SUCCESS:
-            LOGGER.warning("TuyaLink MQTT disconnected unexpectedly (rc=%s)", rc)
-        self._stop_loop()
+            LOGGER.warning("TuyaLink MQTT disconnected unexpectedly (rc=%s). Starting reconnect worker.", rc)
+            self._start_reconnect_thread()
+        else:
+            LOGGER.info("TuyaLink MQTT disconnected cleanly (rc=%s).", rc)
+            self._stop_loop()
+
+    def _start_reconnect_thread(self) -> None:
+        if self._reconnect_thread and self._reconnect_thread.is_alive():
+            return
+        self._stop_reconnect.clear()
+        self._reconnect_thread = threading.Thread(target=self._reconnect_worker, daemon=True)
+        self._reconnect_thread.start()
+
+    def _reconnect_worker(self) -> None:
+        backoff = self._current_backoff
+        while not self._connected.is_set() and not self._stop_reconnect.is_set():
+            try:
+                LOGGER.debug("Reconnect worker attempting to reconnect (backoff=%ss)", backoff)
+                try:
+                    if self._client:
+                        self._client.disconnect()
+                except Exception:
+                    pass
+                self.connect()
+                if self._connected.wait(timeout=5):
+                    LOGGER.info("Reconnect worker succeeded.")
+                    self._current_backoff = self._min_backoff
+                    return
+            except Exception as exc:  # pylint: disable=broad-except
+                LOGGER.warning("Reconnect worker attempt failed: %s", exc)
+            if self._stop_reconnect.wait(timeout=backoff):
+                break
+            backoff = min(backoff * 2, self._max_backoff)
+            self._current_backoff = backoff
 
     def _on_publish(self, client: mqtt.Client, userdata, mid):  # type: ignore[override]
         LOGGER.debug("TuyaLink publish completed (mid=%s)", mid)
@@ -136,6 +172,7 @@ class TuyaLinkPublisher:
     def _disconnect_client(self) -> None:
         if self._client:
             try:
+                # request clean disconnect
                 self._client.disconnect()
             except Exception:  # pylint: disable=broad-except
                 pass
@@ -177,8 +214,8 @@ class TuyaLinkPublisher:
     def close(self) -> None:
         if self.dry_run:
             return
+        self._stop_reconnect.set()
         self._disconnect_client()
-
 
 def build_publisher_from_env() -> TuyaLinkPublisher:
     """Factory helper that reads configuration from environment variables."""
