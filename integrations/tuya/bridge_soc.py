@@ -8,6 +8,8 @@ import re
 import sys
 import time
 from typing import Any, Dict, Optional
+from pathlib import Path
+import json
 
 from dotenv import load_dotenv
 
@@ -30,6 +32,33 @@ TUYA_PROPERTY_IDENTIFIERS = {
     "inverter_emonth_kwh": "Energia_Este_Mes",
     "kpi_day_income_usd": "Receita_Hoje",
 }
+
+
+def _snapshot_path() -> Path:
+    """Resolve the path where we persist the latest telemetry snapshot.
+
+    Allows override via TELEMETRY_SNAPSHOT_PATH; defaults to data/last_inverter_telemetry.json.
+    """
+    override = os.getenv("TELEMETRY_SNAPSHOT_PATH", "").strip()
+    if override:
+        return Path(override)
+    return Path("data") / "last_inverter_telemetry.json"
+
+
+def _persist_snapshot(snapshot: Dict[str, Any]) -> None:
+    """Write a compact JSON snapshot to disk for FastAPI/ESP32 consumption.
+
+    Best‑effort: ignore IO errors so we don't break the bridge publish loop.
+    """
+    try:
+        path = _snapshot_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, separators=(",", ":"))
+        tmp.replace(path)
+    except Exception as exc:  # pylint: disable=broad-except
+        LOGGER.debug("Failed to persist telemetry snapshot: %s", exc)
 
 
 def _setup_logging() -> None:
@@ -218,12 +247,33 @@ def main() -> None:
                     )
 
                 if properties:
-                    publisher.report(properties)
-                    LOGGER.info(
-                        "Published Tuya telemetry for plant %s: %s",
-                        powerstation_id,
-                        properties,
-                    )
+                    # Build and persist a canonical snapshot for local visualization (FastAPI/ESP32)
+                    now_ts = int(time.time())
+                    snapshot: Dict[str, Any] = {
+                        "powerstation_id": powerstation_id,
+                        "timestamp": now_ts,
+                        # Canonical English-ish keys for the demo UI/firmware
+                        "battery_soc": properties.get(TUYA_PROPERTY_IDENTIFIERS["battery_soc"]),
+                        "status": properties.get(TUYA_PROPERTY_IDENTIFIERS["status"]),
+                        "load_w": properties.get(TUYA_PROPERTY_IDENTIFIERS["load_w"]),
+                        "pv_power_w": properties.get(TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]),
+                        "eday_kwh": properties.get(TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]),
+                        "emonth_kwh": properties.get(TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]),
+                        "day_income": properties.get(TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]),
+                        # Also include original Tuya-friendly keys for convenience
+                        "tuya": properties,
+                    }
+                    _persist_snapshot(snapshot)
+                    # Publish to TuyaLink (non-blocking of snapshot persistence)
+                    try:
+                        publisher.report(properties)
+                        LOGGER.info(
+                            "Published Tuya telemetry for plant %s: %s",
+                            powerstation_id,
+                            properties,
+                        )
+                    except Exception as pub_exc:  # pylint: disable=broad-except
+                        LOGGER.warning("Tuya publish failed: %s", pub_exc)
                 else:
                     LOGGER.warning(
                         "No telemetry properties available to publish for plant %s",

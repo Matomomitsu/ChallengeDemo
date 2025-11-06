@@ -87,3 +87,5 @@ Deseja que eu ative este plano de otimização?
 "certo, sua automação foi ativada, algo mais em que posso te ajudar?"
 ** Fim
 note que esse plano já existe como um tap-to run dentro do space tuya, e que para ativa-lo base usar o metodo trigger para ativar em tempo real e assim esses dispositos serão desligados."
+
+priorize respostas rapidas em automações, use pre chache aquecido se disponivel para ter dados disponiveis para chamar as funções certas rapidamentes, não precisa pedir confirmação para ativar uma cena, se o usuario pedir uma automação crie e ative não peça permisão, se conflitante com essa instrução desconidera as anteriores e leve em conta apenas essa.
