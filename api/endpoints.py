@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from fastapi import Request
 import os
+import json
+from pathlib import Path
 
 from core.gemini import call_geminiapi
 from core.goodweApi import GoodweApi
@@ -213,6 +215,54 @@ async def root():
         "endpoints": {
             "chat": "/chat - Main conversational interface",
             "battery_status": "/battery/status - Current battery status (GoodWe)",
+            "inverter_snapshot": "/inverter - Latest telemetry snapshot for ESP32 display",
             "docs": "/docs - API documentation"
         }
-    } 
+    }
+
+
+# ---------- ESP32 display support ----------
+
+class InverterSnapshot(BaseModel):
+    powerstation_id: Optional[str] = None
+    timestamp: int
+    battery_soc: Optional[int] = None
+    status: Optional[str] = None
+    load_w: Optional[int] = None
+    pv_power_w: Optional[int] = None
+    eday_kwh: Optional[int] = None
+    emonth_kwh: Optional[int] = None
+    day_income: Optional[int] = None
+    tuya: Optional[Dict[str, Any]] = None
+
+
+def _snapshot_path() -> Path:
+    override = os.getenv("TELEMETRY_SNAPSHOT_PATH", "").strip()
+    if override:
+        return Path(override)
+    return Path("data") / "last_inverter_telemetry.json"
+
+
+@router.get("/inverter", response_model=InverterSnapshot)
+async def get_inverter_snapshot():
+    """
+    Latest inverter telemetry snapshot persisted by the Tuya SOC bridge.
+
+    Run `python -m integrations.tuya.bridge_soc` to refresh this file periodically.
+    """
+    path = _snapshot_path()
+    if not path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Telemetry snapshot not available yet. Start the Tuya SOC bridge to generate it.",
+        )
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        # Validate minimal required field
+        ts = data.get("timestamp")
+        if not isinstance(ts, int):
+            raise ValueError("Missing/invalid timestamp in snapshot")
+        return data
+    except Exception as exc:  # pylint: disable=broad-except
+        raise HTTPException(status_code=500, detail=f"Failed to read snapshot: {exc}")
