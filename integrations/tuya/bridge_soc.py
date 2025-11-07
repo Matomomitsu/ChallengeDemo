@@ -53,10 +53,15 @@ def _persist_snapshot(snapshot: Dict[str, Any]) -> None:
     try:
         path = _snapshot_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        with tmp.open("w", encoding="utf-8") as f:
+        # Abre diretamente o destino em modo 'w' (trunca o conteúdo anterior)
+        with path.open("w", encoding="utf-8") as f:
             json.dump(snapshot, f, ensure_ascii=False, separators=(",", ":"))
-        tmp.replace(path)
+            try:
+                f.flush()
+                os.fsync(f.fileno())
+            except Exception:
+                # Não falhar se fsync não for suportado ou der erro
+                pass
     except Exception as exc:  # pylint: disable=broad-except
         LOGGER.debug("Failed to persist telemetry snapshot: %s", exc)
 
