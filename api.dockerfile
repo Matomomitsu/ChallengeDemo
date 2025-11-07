@@ -26,6 +26,7 @@ COPY ./system_prompt.txt ./system_prompt.txt
 COPY ./translations_normalized.json ./translations_normalized.json
 COPY ./data ./data
 COPY ./integrations ./integrations
+COPY ./configs ./configs
 
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /frontend/public ./frontend/public
