@@ -6,9 +6,9 @@ import re
 import time
 from typing import Any, Dict, Iterable, List, Optional
 from threading import Lock
+from pathlib import Path
 
 from dotenv import load_dotenv
-
 from integrations.tuya import TuyaApiError, TuyaClient
 from integrations.tuya.client import DEFAULT_TUYA_API_BASE_URL
 from integrations.tuya.workflow import TuyaAutomationWorkflow, load_automation_config
@@ -24,6 +24,11 @@ _TUYA_CLIENT_LOCK = Lock()
 _SHARED_TUYA_CLIENT: Optional[TuyaClient] = None
 _SHARED_WORKFLOW: Optional[TuyaAutomationWorkflow] = None
 
+def _snapshot_path() -> Path:
+    override = os.getenv("TELEMETRY_SNAPSHOT_PATH", "").strip()
+    if override:
+        return Path(override)
+    return Path("data") / "last_inverter_telemetry.json"
 
 def _redact(data: Any) -> Any:
     if isinstance(data, dict):

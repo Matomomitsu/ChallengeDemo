@@ -45,7 +45,7 @@ async def alexa_endpoint(req: dict):
 
             fastpath_response = await try_handle_fastpath(user_input)
             if fastpath_response:
-                return build_alexa_response(fastpath_response, end_session=True)
+                return build_alexa_response(fastpath_response, end_session=False)
 
             # Trata a entrada do usuário
             class ChatRequest:

@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import Request
 import os
 import json
+import asyncio
+from integrations.tuya.client import TuyaClient, TuyaApiError
+
 from pathlib import Path
 
 from core.gemini import call_geminiapi
@@ -266,3 +269,49 @@ async def get_inverter_snapshot():
         return data
     except Exception as exc:  # pylint: disable=broad-except
         raise HTTPException(status_code=500, detail=f"Failed to read snapshot: {exc}")
+
+@router.delete("/delete/scenes")
+async def delete_scenes_all():
+    """
+    Apaga todas as scenes no espaço Tuya configurado nas variáveis de ambiente:
+    - TUYA_CLIENT_ID
+    - TUYA_CLIENT_SECRET
+    - TUYA_SPACE_ID
+    Retorna os ids apagados e o resultado bruto da API Tuya.
+    """
+    client_id = os.getenv("TUYA_CLIENT_ID", "").strip()
+    client_secret = os.getenv("TUYA_CLIENT_SECRET", "").strip()
+    space_id = os.getenv("TUYA_SPACE_ID", "").strip()
+
+    if not client_id or not client_secret or not space_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Environment variables TUYA_CLIENT_ID, TUYA_CLIENT_SECRET and TUYA_SPACE_ID are required",
+        )
+
+    client = TuyaClient(client_id, client_secret)
+
+    try:
+        scenes = await asyncio.to_thread(client.list_scenes, space_id)
+        if not isinstance(scenes, list):
+            raise TuyaApiError("Unexpected scenes payload")
+
+        ids = sorted(
+            {
+                (s.get("id") or s.get("rule_id") or s.get("ruleId") or s.get("ruleIdStr") or "").strip()
+                for s in scenes
+                if isinstance(s, dict)
+            }
+        )
+        ids = [i for i in ids if i]
+
+        if not ids:
+            return {"deleted": [], "message": "No scenes found to delete"}
+
+        # apagar scenes em uma chamada
+        result = await asyncio.to_thread(client.delete_scenes, ids, space_id)
+        return {"deleted": ids, "result": result}
+    except TuyaApiError as exc:
+        raise HTTPException(status_code=502, detail=f"Tuya API error: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete scenes: {exc}")
