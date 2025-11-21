@@ -424,12 +424,20 @@ def inspect_device(device_id: str, *, codes: Optional[Iterable[str]] = None) -> 
         props_map = workflow.inspect_properties([device_id], codes=list(codes) if codes else None)
         prop_objects = props_map.get(device_id, {})
 
-    properties = {code: prop.model_dump(exclude_none=True) for code, prop in prop_objects.items()}
-    displays = [_property_display(code, prop) for code, prop in sorted(prop_objects.items())]
+    # Optimize context for LLM: remove verbose display and keep only essential property data
+    properties = {
+        code: {
+            "value": prop.value,
+            "type": getattr(prop, "type", "unknown"),
+            "dp_id": getattr(prop, "dp_id", None)
+        } 
+        for code, prop in prop_objects.items()
+    }
+    
     return {
         "device_id": device_id,
         "properties": _redact(properties),
-        "properties_display": displays,
+        # "properties_display": displays, # Removed to save tokens and reduce latency
     }
 
 

@@ -14,7 +14,9 @@ from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
 
 # Reuse existing Tuya logic
-from core.gemini import TuyaContextManager, DEFAULT_TUYA_SPACE_ID, prewarm_tuya_caches, prewarm_scene_builder
+# Reuse existing Tuya logic
+from core.tuya_context import TuyaContextManager, DEFAULT_TUYA_SPACE_ID, prewarm_tuya_caches
+from core.tuya_scene_builder import prewarm_scene_builder
 import core.goodweApi as goodweApi
 from core import usage_optimizer
 from integrations.tuya.ai_tools import (
