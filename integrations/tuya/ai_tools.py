@@ -478,6 +478,7 @@ def build_scene_payload_from_instructions(
     *,
     instructions: str,
     space_id: Optional[str] = None,
+    device_ids: Optional[List[str]] = None,
     name_hint: Optional[str] = None,
     decision_expr_hint: Optional[str] = None,
     effective_time_hint: Optional[Dict[str, Any]] = None,
@@ -493,6 +494,11 @@ def build_scene_payload_from_instructions(
         raise RuntimeError("space_id must be provided or TUYA_SPACE_ID must be set")
 
     device_context, properties_context, scenes_context = _get_scene_builder_context(workflow, resolved_space)
+
+    if device_ids:
+        device_set = set(device_ids)
+        device_context = [d for d in device_context if d["id"] in device_set]
+        properties_context = {k: v for k, v in properties_context.items() if k in device_set}
 
     hints: Dict[str, Any] = {}
     if name_hint:

@@ -650,7 +650,7 @@ def create_function_declarations():
     functions.append(
         types.FunctionDeclaration(
             name="tuya_build_scene_payload",
-            description="Generate a Tuya automation or tap-to-run payload from natural language instructions.",
+            description="Generate and create a Tuya automation or tap-to-run from natural language instructions. Returns the created automation details.",
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
@@ -661,6 +661,11 @@ def create_function_declarations():
                     "space_id": types.Schema(
                         type=types.Type.STRING,
                         description="Optional Tuya space ID (uses default if absent).",
+                    ),
+                    "device_ids": types.Schema(
+                        type=types.Type.ARRAY,
+                        description="Optional list of device IDs referenced in the instructions to filter context.",
+                        items=types.Schema(type=types.Type.STRING),
                     ),
                     "name_hint": types.Schema(
                         type=types.Type.STRING,
@@ -843,8 +848,17 @@ class FunctionDispatcher:
                 args["rule_ids"] = resolved_rule_ids
         if function_name in {"tuya_update_automation", "tuya_trigger_scene"} and "rule_id" in args:
             args["rule_id"] = self.tuya_context.resolve_scene_identifier(args.get("rule_id"))
-        if function_name in {"tuya_describe_space", "tuya_propose_automation"} and not args.get("space_id"):
+        if function_name in {"tuya_describe_space", "tuya_propose_automation", "tuya_build_scene_payload"} and not args.get("space_id"):
             args["space_id"] = self.tuya_context.default_space_id
+        if function_name == "tuya_build_scene_payload":
+            device_ids = args.get("device_ids")
+            if isinstance(device_ids, list):
+                resolved_ids = []
+                for item in device_ids:
+                    resolved = self.tuya_context.resolve_device_identifier(item)
+                    if resolved:
+                        resolved_ids.append(resolved)
+                args["device_ids"] = resolved_ids
 
         # Default confirmations to True to avoid extra turns when the user already requested the change.
         if function_name in {
