@@ -1,0 +1,110 @@
+/* Chat visual enhancements: user/assistant highlight, readable typography, scroll for long replies */
+
+.chat-bubble {
+	border-radius: 12px;
+	padding: 12px 14px;
+	line-height: 1.6;
+	word-wrap: break-word;
+	word-break: break-word;
+	white-space: pre-wrap;
+}
+
+.chat-user {
+	background: #E6F0FF; /* light blue */
+	color: #0F2748;     /* deep navy */
+	border: 1px solid rgba(15,39,72,0.15);
+}
+
+.chat-assistant {
+	background: #F6F7F9; /* subtle gray */
+	color: #11161A;
+	border: 1px solid rgba(17,22,26,0.08);
+}
+
+/* Flowkit-informed readable typography for dense outputs */
+.typography-readable {
+	font-family: "DM Sans", "Manrope", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+	font-size: 0.95rem;           /* slightly smaller for more content per line */
+	line-height: 1.7;             /* generous line height for scanning */
+	letter-spacing: 0.005em;
+}
+
+/* Scrollable area for long assistant responses (card 2) */
+.chat-scroll {
+	max-height: 260px;             /* tuned to card layout height */
+	overflow: auto;                /* enable vertical/horizontal scroll as needed */
+	scrollbar-width: thin;         /* Firefox */
+	-webkit-overflow-scrolling: touch; /* iOS smooth scroll */
+}
+
+/* Nice scrollbars where supported */
+.chat-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.25); border-radius: 8px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Ensure rich-text inside the bubble inherits typography and spacing */
+.chat-bubble.rich-text p,
+.chat-bubble.rich-text li {
+	margin: 0 0 0.6em 0;
+}
+
+.chat-bubble.rich-text ul,
+.chat-bubble.rich-text ol {
+	padding-left: 1.2em;
+	margin: 0 0 0.6em 0;
+}
+
+/* CLI demo styles */
+.cli-terminal {
+	background: #0F1623;
+	color: #E7ECF3;
+	border: 1px solid rgba(231,236,243,0.15);
+	box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+	min-height: 220px; /* expand default height */
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.cli-input {
+	background: #0B1120;
+	color: #E7ECF3;
+	border: 1px solid rgba(231,236,243,0.16);
+}
+
+/* Placeholder high-contrast on dark bg */
+.cli-input::placeholder { color: rgba(255,255,255,0.9); opacity: 1; }
+.cli-input::-ms-input-placeholder { color: rgba(255,255,255,0.9); }
+.cli-input:-ms-input-placeholder { color: rgba(255,255,255,0.9); }
+
+.cli-row .button {
+	background: #22c55e; /* green */
+	border-color: #16a34a;
+}
+.cli-row .button:hover { background: #16a34a; }
+.cli-row .button:focus { box-shadow: 0 0 0 3px rgba(34,197,94,0.35); }
+
+.cli-output { max-height: 300px; overflow: auto; }
+
+/* Loader with gentle fade in/out */
+.loader-fade {
+	animation: fadePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes fadePulse {
+	0% { opacity: 0.25; }
+	50% { opacity: 1; }
+	100% { opacity: 0.25; }
+}
+
+/* Visual separator between sections */
+.section-sep {
+	height: 2px;
+	background: linear-gradient(90deg, rgba(15,22,35,0), rgba(15,22,35,0.15), rgba(15,22,35,0));
+	border-radius: 2px;
+}
+
+/* Limit card height and enable scroll in details panel */
+.panel-scroll { max-height: 260px; overflow: auto; }
+
+

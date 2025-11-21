@@ -1,0 +1,40 @@
+{
+  "name": "testefeaturehelena",
+  "version": "1.0.0",
+  "description": "Sistema unificado para gerenciamento de bateria e alarmes via GoodWe SEMS, com API REST e CLI em linguagem natural.",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run build:styles && eleventy",
+    "lint:css": "stylelint \"src/styles/**/*.css\"",
+    "lint": "npm run lint:js && npm run lint:css",
+    "lint:js": "eslint \"src/scripts/**/*.js\"",
+    "dev": "eleventy --serve",
+    "format": "prettier --write \"src/**/*.{njk,js,css,json,md}\"",
+    "build:styles": "postcss src/styles/main.css -o public/css/app.css",
+    "dev:styles": "postcss src/styles/main.css -o public/css/app.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/henrikmm/ChallengeDemoAutomation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/henrikmm/ChallengeDemoAutomation/issues"
+  },
+  "homepage": "https://github.com/henrikmm/ChallengeDemoAutomation#readme",
+  "devDependencies": {
+    "@11ty/eleventy": "^3.1.2",
+    "autoprefixer": "^10.4.21",
+    "cssnano": "^7.1.1",
+    "eslint": "^9.35.0",
+    "eslint-config-prettier": "^10.1.8",
+    "postcss": "^8.5.6",
+    "postcss-cli": "^11.0.1",
+    "prettier": "^3.6.2",
+    "stylelint": "^16.24.0",
+    "stylelint-config-standard": "^39.0.0"
+  }
+}

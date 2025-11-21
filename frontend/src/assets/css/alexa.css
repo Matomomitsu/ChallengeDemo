@@ -1,0 +1,141 @@
+.integration-highlight {
+  padding-inline: clamp(16px, 4vw, 48px);
+}
+
+.integration-container {
+  margin: 0 auto;
+  max-width: 1240px;
+}
+
+.integration-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 56px;
+  max-width: 720px;
+}
+
+.integration-section-header > .heading_h2 {
+  margin: 0;
+}
+
+.integration-section-header > .paragraph_large {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.integration-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 56px;
+  row-gap: 56px;
+  position: relative;
+}
+
+.integration-grid::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(-50%);
+}
+
+.integration-card {
+  grid-column: span 6;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.integration-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.integration-card__header > .heading_h2 {
+  margin-bottom: 0;
+  max-width: 22ch;
+}
+
+.integration-card__header > .paragraph_large {
+  margin-bottom: 0;
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+.integration-card__cta {
+  display: flex;
+  gap: 16px;
+}
+
+.integration-cta {
+  min-width: 180px;
+  justify-content: center;
+}
+
+.integration-mockup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.integration-mockup img,
+.integration-mockup video,
+.integration-media {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(8, 12, 32, 0.45);
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  display: block;
+}
+
+.integration-mockup figcaption {
+  text-align: center;
+  max-width: 32ch;
+}
+
+@media (max-width: 991px) {
+  .integration-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    column-gap: 32px;
+  }
+  .integration-section-header {
+    margin-bottom: 40px;
+  }
+  .integration-grid::after {
+    display: none;
+  }
+  .integration-card {
+    grid-column: 1 / -1;
+  }
+  .integration-card__cta {
+    flex-wrap: wrap;
+  }
+  .integration-mockup img,
+  .integration-mockup video,
+  .integration-media {
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  .integration-card {
+    gap: 24px;
+  }
+  .integration-section-header {
+    gap: 12px;
+  }
+  .integration-card__header > .heading_h2 {
+    font-size: 2.25rem;
+  }
+  .integration-cta {
+    width: 100%;
+  }
+}

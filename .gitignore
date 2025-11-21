@@ -1,0 +1,13 @@
+.venv/
+.idea/
+nginx/*
+# Python cache and bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+.env
+# Frontend dependencies and build
+frontend/node_modules/
+frontend/public/
