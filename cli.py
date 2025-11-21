@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import time
-from core.gemini import call_geminiapi, initialize_chat
+from core.llm import call_llm, initialize_agent
 from core.sems_history import fetch_and_parse_7d
 from dotenv import load_dotenv
 
@@ -16,8 +16,10 @@ def chat_interface():
     print("⚡ BotSolar is ready. Ask about solar generation or battery management.")
     print("Type 'exit', 'quit', or 'bye' to leave.\n")
     
-    if not initialize_chat():
-        print("❌ Could not initialize chat. Exiting.")
+    try:
+        initialize_agent()
+    except Exception as e:
+        print(f"❌ Could not initialize agent: {e}")
         return
     
     while True:
@@ -30,7 +32,7 @@ def chat_interface():
                 break
 
             started = time.perf_counter()
-            result = asyncio.run(call_geminiapi(user_input))
+            result = asyncio.run(call_llm(user_input))
             elapsed = time.perf_counter() - started
             if isinstance(result, dict):
                 response_text = result.get("response", "")

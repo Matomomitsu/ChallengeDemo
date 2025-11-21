@@ -56,3 +56,6 @@ uvicorn==0.34.2
 watchfiles==1.0.5
 websockets==15.0.1
 wheel==0.45.1
+langchain==0.3.0
+langchain-groq
+langchain-community

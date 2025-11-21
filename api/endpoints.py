@@ -9,7 +9,7 @@ from integrations.tuya.client import TuyaClient, TuyaApiError
 
 from pathlib import Path
 
-from core.gemini import call_geminiapi
+from core.llm import call_llm
 from core.goodweApi import GoodweApi
 import os
 
@@ -64,7 +64,7 @@ async def chat_endpoint(request: ChatRequest):
     Example: "How much solar energy did I generate yesterday?"
     """
     try:
-        result = await call_geminiapi(request.user_input, powerstation_id=request.plant_id)
+        result = await call_llm(request.user_input, powerstation_id=request.plant_id)
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
@@ -148,7 +148,7 @@ async def google_webhook(request: Request):
     try:
         body = await request.json()
         user_input = body.get("queryResult", {}).get("queryText", "")
-        result = await call_geminiapi(user_input)
+        result = await call_llm(user_input)
         if isinstance(result, dict):
             response_text = result.get("response", "")
         else:

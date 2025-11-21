@@ -1,4 +1,4 @@
-"""Gemini-backed helper to build Tuya scene payloads from natural language."""
+"""Groq-backed helper to build Tuya scene payloads from natural language."""
 from __future__ import annotations
 
 import json
@@ -8,16 +8,15 @@ from threading import Lock
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
 
 load_dotenv(".env")
 
 _BUILDER_PROMPT_PATH = "configs/tuya_scene_builder_prompt.txt"
-_DEFAULT_MODEL = os.getenv("GEMINI_SCENE_BUILDER_MODEL", "gemini-2.5-flash")
-_RESPONSE_MIME_TYPE = "application/json"
+_DEFAULT_MODEL = os.getenv("GROQ_MODEL_NAME", "openai/gpt-oss-120b")
 
-_BUILDER_CLIENT: Optional[genai.Client] = None
+_BUILDER_CLIENT: Optional[ChatGroq] = None
 _BUILDER_PROMPT: Optional[str] = None
 _BUILDER_LOCK = Lock()
 
@@ -40,17 +39,22 @@ def _load_prompt() -> str:
         ) from exc
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> ChatGroq:
     global _BUILDER_CLIENT
     if _BUILDER_CLIENT is not None:
         return _BUILDER_CLIENT
     with _BUILDER_LOCK:
         if _BUILDER_CLIENT is not None:
             return _BUILDER_CLIENT
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-            raise SceneBuilderError("GEMINI_API_KEY is not configured.")
-        _BUILDER_CLIENT = genai.Client(api_key=api_key)
+            raise SceneBuilderError("GROQ_API_KEY is not configured.")
+        
+        _BUILDER_CLIENT = ChatGroq(
+            model=_DEFAULT_MODEL,
+            api_key=api_key,
+            temperature=0.1, # Low temperature for structured output
+        )
         _load_prompt()
         return _BUILDER_CLIENT
 
@@ -81,7 +85,7 @@ def _parse_payload(text: str) -> Dict[str, Any]:
 
 
 def prewarm_scene_builder() -> None:
-    """Initialise the Gemini client ahead of time to reduce first-call latency."""
+    """Initialise the Groq client ahead of time to reduce first-call latency."""
     try:
         _get_client()
     except Exception as exc:  # pragma: no cover - network failure
@@ -99,7 +103,10 @@ def build_scene_payload(
         raise SceneBuilderError("Instructions are required to build a scene payload.")
 
     payload_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-    prompt_body = (
+    
+    # Construct the prompt messages
+    system_prompt = _load_prompt()
+    user_message = (
         "Available context (use IDs only inside the final payload):\n"
         f"{payload_context}\n\n"
         "User request:\n"
@@ -108,26 +115,15 @@ def build_scene_payload(
 
     client = _get_client()
     try:
-        chat = client.chats.create(
-            model=model or _DEFAULT_MODEL,
-            config=types.GenerateContentConfig(
-                system_instruction=_load_prompt(),
-                response_mime_type=_RESPONSE_MIME_TYPE,
-            ),
-        )
-        response = chat.send_message(message=prompt_body)
+        # Use invoke for synchronous call, similar to the original logic
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_message)
+        ]
+        response = client.invoke(messages)
+        text = response.content
     except Exception as exc:  # pragma: no cover - network failure
         raise SceneBuilderError(f"Scene builder request failed: {exc}") from exc
-
-    text = getattr(response, "text", "") or ""
-    if not text and getattr(response, "candidates", None):
-        parts = []
-        for candidate in response.candidates:
-            content = getattr(candidate, "content", None)
-            for part in getattr(content, "parts", []) or []:
-                if getattr(part, "text", None):
-                    parts.append(part.text)
-        text = "\n".join(parts).strip()
 
     payload_text = _normalise_payload_text(text)
     return {
