@@ -845,6 +845,19 @@ class FunctionDispatcher:
             args["rule_id"] = self.tuya_context.resolve_scene_identifier(args.get("rule_id"))
         if function_name in {"tuya_describe_space", "tuya_propose_automation"} and not args.get("space_id"):
             args["space_id"] = self.tuya_context.default_space_id
+
+        # Default confirmations to True to avoid extra turns when the user already requested the change.
+        if function_name in {
+            "tuya_create_and_enable_automation",
+            "tuya_update_automation",
+            "tuya_delete_automations",
+            "tuya_set_automation_state",
+            "tuya_trigger_scene",
+        }:
+            if "confirm" not in args:
+                args["confirm"] = True
+        if function_name == "tuya_create_and_enable_automation" and "enable" not in args:
+            args["enable"] = True
         return args
 
     def execute(self, function_call, *, powerstation_override: Optional[str] = None):
@@ -884,6 +897,7 @@ class FunctionDispatcher:
         function_args = dict(function_call.args) if function_call.args else {}
         fallback_to_default = False
         used_powerstation_id = function_args.get("powerstation_id")
+        started_at = time.perf_counter()
 
         if function_name.startswith("tuya_"):
             function_args = self._resolve_tuya_args(function_name, function_args)
@@ -918,10 +932,28 @@ class FunctionDispatcher:
                             used_powerstation_id = default_station
                             fallback_to_default = True
 
-                if function_name == "get_today_date":
+                if function_name == "tuya_build_scene_payload":
+                    build_result = function_map[function_name](**function_args)
+                    result = build_result
+                    if isinstance(build_result, dict):
+                        payload = build_result.get("payload") or {}
+                        if payload:
+                            try:
+                                create_result = create_and_enable_automation(
+                                    payload=payload,
+                                    confirm=True,
+                                    enable=True,
+                                )
+                                result = {"payload": build_result, "created": create_result}
+                                self.tuya_context.invalidate()
+                            except Exception as exc:
+                                result = {"payload": build_result, "create_error": str(exc)}
+                elif function_name == "get_today_date":
                     result = function_map[function_name]()
                 else:
                     result = function_map[function_name](**function_args)
+
+                duration = time.perf_counter() - started_at
 
                 if function_name == "tuya_describe_space":
                     target_space = function_args.get("space_id") or self.tuya_context.default_space_id
@@ -943,6 +975,7 @@ class FunctionDispatcher:
                     "used_powerstation_id": used_powerstation_id,
                     "args_preview": preview_args,
                     "result_preview": preview_result,
+                    "duration_s": duration,
                 }
                 return result, preview_args, preview_result, meta
             except Exception as exc:
@@ -953,6 +986,7 @@ class FunctionDispatcher:
                     "used_powerstation_id": used_powerstation_id,
                     "args_preview": _json_safe(function_args),
                     "result_preview": _json_safe(error_payload),
+                    "duration_s": time.perf_counter() - started_at,
                 }
                 return error_payload, meta["args_preview"], meta["result_preview"], meta
 
@@ -962,6 +996,7 @@ class FunctionDispatcher:
             "used_powerstation_id": used_powerstation_id,
             "args_preview": _json_safe(function_args),
             "result_preview": _json_safe(error_payload),
+            "duration_s": time.perf_counter() - started_at,
         }
         return error_payload, meta["args_preview"], meta["result_preview"], meta
 
@@ -1028,16 +1063,21 @@ class GeminiAssistant:
                     "functions_preview": [],
                     "fallback_to_default": False,
                     "used_powerstation_id": powerstation_id,
+                    "timings": {"steps": [], "functions": []},
                 }
 
         try:
             augmented_input, _ = await self.tuya_context.augment_user_input(user_input)
+            trace_steps = []
+            t0 = time.perf_counter()
             response = await self._send_with_retry(augmented_input)
+            trace_steps.append({"step": "gemini_initial", "duration_s": time.perf_counter() - t0})
             function_executed = False
             executed_functions = []
             final_answer_chunks = []
             used_powerstation_id = powerstation_id
             fallback_to_default = False
+            followup_idx = 0
 
             while True:
                 function_response_parts = []
@@ -1067,6 +1107,7 @@ class GeminiAssistant:
                                     "name": part.function_call.name,
                                     "args": preview_args,
                                     "result": preview_result,
+                                    "duration_s": meta.get("duration_s"),
                                 }
                             )
                             if meta.get("used_powerstation_id"):
@@ -1079,7 +1120,15 @@ class GeminiAssistant:
                             final_answer_chunks.append(part.text)
 
                 if has_function_call and function_response_parts:
+                    t_step = time.perf_counter()
                     response = await self._send_with_retry(function_response_parts, allow_recreate=True)
+                    followup_idx += 1
+                    trace_steps.append(
+                        {
+                            "step": f"gemini_followup_{followup_idx}",
+                            "duration_s": time.perf_counter() - t_step,
+                        }
+                    )
                 else:
                     break
 
@@ -1100,6 +1149,7 @@ class GeminiAssistant:
                 "functions_preview": executed_functions,
                 "fallback_to_default": fallback_to_default,
                 "used_powerstation_id": used_powerstation_id,
+                "timings": {"steps": trace_steps, "functions": executed_functions},
             }
         except Exception as exc:
             print(f"❌ Error in call_geminiapi: {exc}")
@@ -1108,6 +1158,7 @@ class GeminiAssistant:
                 "functions_preview": [],
                 "fallback_to_default": False,
                 "used_powerstation_id": powerstation_id,
+                "timings": {"steps": [], "functions": []},
             }
 
 

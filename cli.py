@@ -2,6 +2,7 @@ import asyncio
 import argparse
 import json
 import os
+import time
 from core.gemini import call_geminiapi, initialize_chat
 from core.sems_history import fetch_and_parse_7d
 from dotenv import load_dotenv
@@ -27,16 +28,38 @@ def chat_interface():
             if user_input.lower() in {"exit", "quit", "bye"}:
                 print("🤖 BotSolar: Goodbye!")
                 break
-            
+
+            started = time.perf_counter()
             result = asyncio.run(call_geminiapi(user_input))
+            elapsed = time.perf_counter() - started
             if isinstance(result, dict):
                 response_text = result.get("response", "")
                 print(f"🤖 BotSolar: {response_text}\n")
+                print(f"⏱️ Latency: {elapsed:.2f}s\n")
+
+                timings = result.get("timings") or {}
+                step_timings = timings.get("steps") or []
+                if step_timings:
+                    print("⏳ Per-step timings:")
+                    for entry in step_timings:
+                        print(f"- {entry.get('step')}: {entry.get('duration_s'):.2f}s")
+                    print()
+
                 functions_preview = result.get("functions_preview") or []
                 if SHOW_FUNCTION_PREVIEW and functions_preview:
                     print("🔍 Functions executed:")
                     print(json.dumps(functions_preview, ensure_ascii=False, indent=2))
                     print()
+                elif functions_preview:
+                    fn_has_durations = any(isinstance(fn, dict) and fn.get("duration_s") is not None for fn in functions_preview)
+                    if fn_has_durations:
+                        print("⚙️  Function timings:")
+                        for fn in functions_preview:
+                            name = fn.get("name")
+                            dur = fn.get("duration_s")
+                            if name and dur is not None:
+                                print(f"- {name}: {dur:.2f}s")
+                        print()
                 used_station = result.get("used_powerstation_id")
                 if result.get("fallback_to_default") and used_station:
                     print(
