@@ -246,7 +246,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'Were there any alerts on my stations in October 2025?';
+  const question = 'Was there any alert on my inverter today?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
