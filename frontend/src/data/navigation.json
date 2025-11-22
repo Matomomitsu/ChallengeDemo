@@ -1,9 +1,12 @@
 {
   "logo": {
     "url": "#",
-    "label": "Assistente solar"
+    "label": "Solar Assistant"
   },
   "links": [
-    { "href": "/sobre/", "label": "Sobre" }
+    {
+      "href": "/sobre/",
+      "label": "About"
+    }
   ]
 }
