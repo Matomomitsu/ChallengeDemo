@@ -129,31 +129,40 @@ def get_warning_detail(stationid: str, warningid: str, devicesn: str) -> Dict[st
     return api.GetWarningDetailTranslated(stationid, warningid, devicesn)
 
 @tool
-def get_powerstation_power_and_income_by_day(powerstation_id: str, date: str) -> Dict[str, Any]:
+def get_powerstation_power_and_income_by_day(powerstation_id: Optional[str] = None, date: str = None) -> Dict[str, Any]:
     """Get daily energy generation and income.
-    powerstation_id: Powerstation ID.
+    powerstation_id: Powerstation ID. If not provided, uses the default from configuration.
     date: YYYY-MM-DD
     """
     api = goodweApi.GoodweApi()
-    return api.GetPowerAndIncomeByDay(powerstation_id=powerstation_id, date=date)
+    target_id = powerstation_id or _get_default_powerstation_id()
+    if not target_id:
+        return {"hasError": True, "msg": "No powerstation ID provided and no default found."}
+    return api.GetPowerAndIncomeByDay(powerstation_id=target_id, date=date)
 
 @tool
-def get_powerstation_power_and_income_by_month(powerstation_id: str, date: str) -> Dict[str, Any]:
+def get_powerstation_power_and_income_by_month(powerstation_id: Optional[str] = None, date: str = None) -> Dict[str, Any]:
     """Get monthly energy generation and income.
-    powerstation_id: Powerstation ID.
+    powerstation_id: Powerstation ID. If not provided, uses the default from configuration.
     date: YYYY-MM-DD (any day in the month)
     """
     api = goodweApi.GoodweApi()
-    return api.GetPowerAndIncomeByMonth(powerstation_id=powerstation_id, date=date)
+    target_id = powerstation_id or _get_default_powerstation_id()
+    if not target_id:
+        return {"hasError": True, "msg": "No powerstation ID provided and no default found."}
+    return api.GetPowerAndIncomeByMonth(powerstation_id=target_id, date=date)
 
 @tool
-def get_powerstation_power_and_income_by_year(powerstation_id: str, date: str) -> Dict[str, Any]:
+def get_powerstation_power_and_income_by_year(powerstation_id: Optional[str] = None, date: str = None) -> Dict[str, Any]:
     """Get yearly energy generation and income.
-    powerstation_id: Powerstation ID.
+    powerstation_id: Powerstation ID. If not provided, uses the default from configuration.
     date: YYYY-MM-DD (any day in the year)
     """
     api = goodweApi.GoodweApi()
-    return api.GetPowerAndIncomeByYear(powerstation_id=powerstation_id, date=date)
+    target_id = powerstation_id or _get_default_powerstation_id()
+    if not target_id:
+        return {"hasError": True, "msg": "No powerstation ID provided and no default found."}
+    return api.GetPowerAndIncomeByYear(powerstation_id=target_id, date=date)
 
 @tool
 def get_ev_charger_status(powerstation_id: Optional[str] = None) -> Dict[str, Any]:

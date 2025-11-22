@@ -555,7 +555,10 @@ class GoodweApi:
         """
         details = self.GetPlantDetailByPowerstationId(powerstation_id)
         soc = self.extract_soc(details.text)
-        id = soc["soc"][0]["sn"]
+        if not soc.get("soc"):
+            print(f"No inverter found for powerstation {powerstation_id}")
+            return {"hasError": True, "msg": "No inverter found for this powerstation."}
+        sn = soc["soc"][0]["sn"]
 
         token = self.GetToken()
         if not token:
@@ -574,7 +577,7 @@ class GoodweApi:
         payload = {
             "date": date + " 00:00:00",
             "powerstation_id": powerstation_id,
-            "id": id,
+            "id": sn,
             "count": count
         }
 
@@ -609,6 +612,9 @@ class GoodweApi:
 
         details = self.GetPlantDetailByPowerstationId(powerstation_id)
         soc = self.extract_soc(details.text)
+        if not soc.get("soc"):
+            print(f"No inverter found for powerstation {powerstation_id}")
+            return {"hasError": True, "msg": "No inverter found for this powerstation."}
         sn = soc["soc"][0]["sn"]
 
         token = self.GetToken()
@@ -663,6 +669,9 @@ class GoodweApi:
 
         details = self.GetPlantDetailByPowerstationId(powerstation_id)
         soc = self.extract_soc(details.text)
+        if not soc.get("soc"):
+            print(f"No inverter found for powerstation {powerstation_id}")
+            return {"hasError": True, "msg": "No inverter found for this powerstation."}
         sn = soc["soc"][0]["sn"]
 
         token = self.GetToken()
