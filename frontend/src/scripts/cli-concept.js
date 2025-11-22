@@ -222,99 +222,116 @@
     }
   }
 
-  function submit(question) {
-    const query = (question || '').trim();
-    if (!query) return;
-
-    turn += 1;
-    const inferred = inferFunctions(query);
-
-    let userBubble;
-    if (turn === 1 && typing) {
-      userBubble = typing;
-    } else {
-      userBubble = createUserBubble();
+  async function getClientIp() {
+    try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (!res.ok) return null;
+        const j = await res.json();
+        return j?.ip || null;
+    } catch (e) {
+        return null;
     }
-
-    setLoading(true);
-    if (latencyLabel) latencyLabel.textContent = '…';
-    if (functionsLabel) {
-      functionsLabel.textContent = inferred && inferred.length ? inferred.join(', ') : '—';
-    }
-    setFunctionsLoading();
-
-    if (!selectedPlantId) {
-      setPlantStatus('Using default demo plant.');
-    }
-
-    const userTyping = typeInto(userBubble, 'User: ', query, 18);
-    const start = performance.now();
-    const requestBody = { user_input: query };
-    if (selectedPlantId) requestBody.plant_id = selectedPlantId;
-    const request = fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
-    })
-      .then((res) =>
-        res
-          .json()
-          .catch(() => ({}))
-          .then((json) => ({ status: res.status, json, latency: Math.round(performance.now() - start) }))
-      );
-
-    Promise.all([userTyping, request])
-      .then(([, payload]) => {
-        updateFunctionsPreview(payload?.json?.functions_preview);
-        const rawAnswer = sanitize(payload?.json?.response || payload?.json?.message || 'No response.');
-        const answer = rawAnswer.replace(/^Assistant:\s*/i, '').replace(/^Assistente:\s*/i, '');
-        let assistantBubble;
-        if (turn === 1 && response) {
-          assistantBubble = response;
-        } else {
-          assistantBubble = createAssistantBubble();
-        }
-        const fallback = Boolean(payload?.json?.fallback_to_default);
-        const usedPowerstation = payload?.json?.used_powerstation_id;
-        let finalAnswer = answer;
-        if (fallback && plantSelect) {
-          plantSelect.value = '';
-          selectedPlantId = '';
-        }
-        if (fallback && usedPowerstation) {
-          finalAnswer = answer
-            ? `${answer}\n\n(Note: no recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.)`
-            : `No recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.`;
-        }
-        if (plantStatus) {
-          if (fallback) {
-            setPlantStatus('No recent data for chosen plant. Reverted to demo.');
-          } else if (selectedPlantId) {
-            const label = getSelectedPlantLabel() || usedPowerstation || selectedPlantId;
-            setPlantStatus(`Querying data for plant ${label}.`);
-          } else {
-            setPlantStatus('Using default demo plant.');
-          }
-        }
-        return typeInto(assistantBubble, 'Assistant: ', finalAnswer, 16).then(() => {
-          updateMetrics(payload, inferred);
-          setLoading(false);
-          if (functionsPanel && functionsToggle && payload?.json?.functions_preview?.length) {
-            toggleFunctionsPanel(true);
-          }
-        });
-      })
-      .catch((err) => {
-        console.error(err);
-        const assistantBubble = turn === 1 && response ? response : createAssistantBubble();
-        assistantBubble.textContent = 'Assistant: Could not access API at the moment. Try again.';
-        if (latencyLabel) latencyLabel.textContent = '—';
-        if (functionsLabel) functionsLabel.textContent = '—';
-        setFunctionsLoading('Could not load preview.');
-        if (plantStatus) setPlantStatus('Could not complete query. Try again.');
-        setLoading(false);
-      });
   }
+
+// Tornar submit assíncrono para inserir o header X-Real-Ip
+    async function submit(question) {
+      const query = (question || '').trim();
+      if (!query) return;
+
+      turn += 1;
+      const inferred = inferFunctions(query);
+
+      let userBubble;
+      if (turn === 1 && typing) {
+        userBubble = typing;
+      } else {
+        userBubble = createUserBubble();
+      }
+
+      setLoading(true);
+      if (latencyLabel) latencyLabel.textContent = '…';
+      if (functionsLabel) {
+        functionsLabel.textContent = inferred && inferred.length ? inferred.join(', ') : '—';
+      }
+      setFunctionsLoading();
+
+      if (!selectedPlantId) {
+        setPlantStatus('Using default demo plant.');
+      }
+
+      const userTyping = typeInto(userBubble, 'User: ', query, 18);
+      const start = performance.now();
+      const requestBody = { user_input: query };
+      if (selectedPlantId) requestBody.plant_id = selectedPlantId;
+
+      const clientIp = await getClientIp();
+      const headers = { 'Content-Type': 'application/json' };
+      if (clientIp) headers['X-Real-Ip'] = clientIp;
+
+      const request = fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      })
+        .then((res) =>
+          res
+            .json()
+            .catch(() => ({}))
+            .then((json) => ({ status: res.status, json, latency: Math.round(performance.now() - start) }))
+        );
+
+      Promise.all([userTyping, request])
+        .then(([, payload]) => {
+          updateFunctionsPreview(payload?.json?.functions_preview);
+          const rawAnswer = sanitize(payload?.json?.response || payload?.json?.message || 'No response.');
+          const answer = rawAnswer.replace(/^Assistant:\s*/i, '').replace(/^Assistente:\s*/i, '');
+          let assistantBubble;
+          if (turn === 1 && response) {
+            assistantBubble = response;
+          } else {
+            assistantBubble = createAssistantBubble();
+          }
+          const fallback = Boolean(payload?.json?.fallback_to_default);
+          const usedPowerstation = payload?.json?.used_powerstation_id;
+          let finalAnswer = answer;
+          if (fallback && plantSelect) {
+            plantSelect.value = '';
+            selectedPlantId = '';
+          }
+          if (fallback && usedPowerstation) {
+            finalAnswer = answer
+              ? `${answer}\n\n(Note: no recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.)`
+              : `No recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.`;
+          }
+          if (plantStatus) {
+            if (fallback) {
+              setPlantStatus('No recent data for chosen plant. Reverted to demo.');
+            } else if (selectedPlantId) {
+              const label = getSelectedPlantLabel() || usedPowerstation || selectedPlantId;
+              setPlantStatus(`Querying data for plant ${label}.`);
+            } else {
+              setPlantStatus('Using default demo plant.');
+            }
+          }
+          return typeInto(assistantBubble, 'Assistant: ', finalAnswer, 16).then(() => {
+            updateMetrics(payload, inferred);
+            setLoading(false);
+            if (functionsPanel && functionsToggle && payload?.json?.functions_preview?.length) {
+              toggleFunctionsPanel(true);
+            }
+          });
+        })
+        .catch((err) => {
+          console.error(err);
+          const assistantBubble = turn === 1 && response ? response : createAssistantBubble();
+          assistantBubble.textContent = 'Assistant: Could not access API at the moment. Try again.';
+          if (latencyLabel) latencyLabel.textContent = '—';
+          if (functionsLabel) functionsLabel.textContent = '—';
+          setFunctionsLoading('Could not load preview.');
+          if (plantStatus) setPlantStatus('Could not complete query. Try again.');
+          setLoading(false);
+        });
+    }
 
   send.addEventListener('click', (event) => {
     event.preventDefault();

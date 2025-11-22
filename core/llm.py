@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import threading
+from pydantic import BaseModel
 import asyncio
 import json
 from datetime import datetime
@@ -12,7 +13,7 @@ from typing import Any, Dict, Optional, List, Sequence
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 
 # Reuse existing Tuya logic
@@ -162,12 +163,12 @@ def get_ev_charger_status(powerstation_id: Optional[str] = None) -> Dict[str, An
     return api.GetEvChargerChargingMode(powerstation_id)
 
 @tool
-def change_ev_charger_status(charge_mode: int, powerstation_id: Optional[str] = None) -> Dict[str, Any]:
+def change_ev_charger_status(charge_mode: int) -> Dict[str, Any]:
     """Change the EV charger mode.
     charge_mode: 1 - Fast, 2 - PV Priority, 3 - PV & Battery.
     """
     api = goodweApi.GoodweApi()
-    return api.ChangeEvChargerChargingMode(powerstation_id=powerstation_id, charge_mode=charge_mode)
+    return api.ChangeEvChargerChargingMode(powerstation_id=DEFAULT_POWERSTATION_ID, charge_mode=charge_mode)
 
 @tool
 def optimize_usage(parsed_path: Optional[str] = None) -> Dict[str, Any]:
@@ -285,19 +286,20 @@ def initialize_agent():
         model_name=GROQ_MODEL,
         groq_api_key=GROQ_API_KEY
     )
-    
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", get_system_prompt()),
-            ("placeholder", "{chat_history}"),
-            ("human", "{input}"),
-            ("placeholder", "{agent_scratchpad}"),
-        ]
-    )
-    
-    agent = create_tool_calling_agent(llm, ALL_TOOLS, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=ALL_TOOLS, verbose=True)
-    return agent_executor
+
+    # prompt = ChatPromptTemplate.from_messages(
+    #     [
+    #         ("system", get_system_prompt()),
+    #         ("placeholder", "{chat_history}"),
+    #         ("human", "{input}"),
+    #         ("placeholder", "{agent_scratchpad}"),
+    #     ]
+    # )
+
+
+    agent = create_agent(model=llm, tools=ALL_TOOLS, system_prompt=get_system_prompt())
+    # agent_executor = AgentExecutor(agent=agent, tools=ALL_TOOLS, verbose=True)
+    return agent
 
 # --- Main Interface ---
 
@@ -313,40 +315,72 @@ def get_agent_executor():
         threading.Thread(target=prewarm_scene_builder, daemon=True).start()
     return _agent_executor
 
-async def call_llm(user_input: str, powerstation_id: Optional[str] = None) -> Dict[str, Any]:
+
+_last_responses_by_ip: Dict[str, Dict[str, Any]] = {}
+
+async def call_llm(user_input: str, powerstation_id: Optional[str] = None, user_ip: Optional[str] = None) -> Dict[
+    str, Any]:
     """
     Main entry point for the API.
-    Mimics the return signature of the old call_geminiapi for compatibility.
+    Saves last response per IP and prepends start messages (system + last assistant response for IP).
     """
+    global _last_responses_by_ip
     try:
         agent = get_agent_executor()
-        
+
         # Augment input with Tuya context if needed
         augmented_input, _ = await tuya_context.augment_user_input(user_input)
-        
-        # We don't have chat history persistence in this simple function yet, 
-        # but the agent executor can handle it if we pass it.
-        # For now, we treat each call as stateless or rely on the client to send history (not implemented in old API).
-        
+
+        # Build start messages: system prompt, optional last assistant response for this IP, then user message
+        messages = []
+        system_text = get_system_prompt()
+        messages.append({"role": "system", "content": system_text})
+
+        if user_ip:
+            last = _last_responses_by_ip.get(user_ip)
+            if last and last.get("response"):
+                messages.append({"role": "assistant", "content": last["response"]})
+
+        # (optionally add placeholders for chat_history / agent_scratchpad if needed)
+        messages.append({"role": "user", "content": augmented_input})
+
         t0 = time.perf_counter()
-        result = await agent.ainvoke({"input": augmented_input})
+        result = await agent.ainvoke({"messages": messages})
         duration = time.perf_counter() - t0
-        
-        output = result.get("output", "")
-        
-        # Extract executed tools from intermediate steps if available
-        # AgentExecutor returns 'intermediate_steps' if return_intermediate_steps=True (default False)
-        # We might need to enable it to match the old API's "functions_preview".
-        # For now, we return a simplified response.
-        
+
+        # Extract output robustly
+        output = ""
+        try:
+            if isinstance(result, dict) and "messages" in result and isinstance(result["messages"], list) and result[
+                "messages"]:
+                last_msg = result["messages"][-1]
+                if isinstance(last_msg, dict):
+                    output = last_msg.get("content", "")
+                else:
+                    output = getattr(last_msg, "content", str(last_msg))
+            elif isinstance(result, dict):
+                output = result.get("output", "") or str(result)
+            else:
+                output = str(result)
+        except Exception:
+            output = str(result)
+
+        # Save last response by IP
+        key = user_ip or "unknown"
+        _last_responses_by_ip[key] = {
+            "response": output,
+            "timestamp": datetime.utcnow().isoformat(),
+            "duration_s": duration,
+        }
+
         return {
             "response": output,
-            "functions_preview": [], # TODO: Extract from agent steps if needed
+            "functions_preview": [],  # TODO: Extract from agent steps if needed
             "fallback_to_default": False,
             "used_powerstation_id": powerstation_id,
             "timings": {"total_duration_s": duration},
         }
-        
+
     except Exception as e:
         print(f"❌ Error in call_llm: {e}")
         import traceback

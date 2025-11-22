@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
 class ChatRequest(BaseModel):
     user_input: str
     plant_id: Optional[str] = None
+    user_ip: Optional[str] = None
 
 
 class PlantInfo(BaseModel):
@@ -51,20 +52,26 @@ DEFAULT_STATION_ID = os.getenv("DEFAULT_STATION_ID")
 
 # Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(req_model: ChatRequest, request: Request):
     """
     🤖 AI-Powered Chat Interface
-    
-    Main conversational endpoint that handles natural language queries for:
-    - Solar generation data analysis
-    - Battery management commands
-    - Historical data requests
-    - Real-time energy monitoring
-    
-    Example: "How much solar energy did I generate yesterday?"
+
+    Usa o IP extraído pelo middleware (request.state.client_ip), injeta em
+    req_model.user_ip quando presente e repassa para call_llm.
     """
     try:
-        result = await call_llm(request.user_input, powerstation_id=request.plant_id)
+        client_ip = getattr(request.state, "client_ip", None)
+
+        # Injeta no modelo de requisição se o campo existir
+        if client_ip and hasattr(req_model, "user_ip"):
+            setattr(req_model, "user_ip", client_ip)
+
+        # Monte argumentos dinamicamente para call_llm
+        llm_kwargs = {"powerstation_id": req_model.plant_id}
+        if client_ip:
+            req_model.user_ip = client_ip
+
+        result = await call_llm(req_model.user_input, **llm_kwargs, user_ip=req_model.user_ip)
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")

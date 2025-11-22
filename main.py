@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from typing import Callable
 from dotenv import load_dotenv
 from pathlib import Path
 import uvicorn
@@ -53,10 +56,33 @@ app.include_router(alexa_router, prefix="/api")
 # Serve the generated Eleventy site at /demo
 app.mount("/demo", StaticFiles(directory=FRONTEND_DIR, html=True), name="demo")
 
+class ClientIPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Callable):
+        xff = request.headers.get("x-forwarded-for")
+        x_real = request.headers.get("x-real-ip")
+        if xff:
+            ip = xff.split(",")[0].strip()
+        elif x_real:
+            ip = x_real.split(",")[0].strip()
+        else:
+            ip = request.client.host if request.client else None
+
+        request.state.client_ip = ip
+        response = await call_next(request)
+        return response
+
+app.add_middleware(ClientIPMiddleware)
+
+
 # Back-compat: expose chat endpoint at top-level /chat for legacy front-end
 @app.post("/chat", response_model=endpoints.ChatResponse)
-async def chat_alias(request: endpoints.ChatRequest):
-    return await endpoints.chat_endpoint(request)
+async def chat_alias(req_model: endpoints.ChatRequest, request: Request):
+    client_ip = getattr(request.state, "client_ip", None)
+    # opcional: injeta no modelo de requisição se ele tiver o campo
+    if hasattr(req_model, "user_ip"):
+        setattr(req_model, "user_ip", client_ip)
+    # encaminha para o endpoint existente (ajuste assinatura se necessário)
+    return await endpoints.chat_endpoint(req_model, request)
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI server...")

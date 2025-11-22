@@ -44,11 +44,27 @@ function smoothScrollTo(target, opts) {
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
 
-function fetchChatPayload(question) {
+async function getClientIp() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.ip || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchChatPayload(question) {
   const startedAt = performance.now();
+  const clientIp = await getClientIp();
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (clientIp) headers['X-Real-Ip'] = clientIp;
+
   return fetch(API_CHAT_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ user_input: question })
   })
     .then((res) =>
@@ -246,7 +262,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'Was there any alert on my inverter today?';
+  const question = 'Was there any alert on my inverter last month?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -328,7 +344,7 @@ function initCard3() {
   if (followUpBtn) {
     followUpBtn.addEventListener('click', (event) => {
       event.preventDefault();
-      const followQuestion = 'Explain the first error returned better';
+      const followQuestion = 'Explain the first error';
       if (loading) loading.style.display = 'block';
       const stack = typing ? typing.parentNode : null;
       if (stack) {
