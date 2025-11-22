@@ -76,22 +76,33 @@ class GoodweApi:
 
         response = requests.post(url, json=payload, headers=headers)
 
-        if response.status_code == 200 and response.json() and "data" in response.json() and response.json()[
-            "data"] is not None:
-            dataToString = json.dumps(response.json()["data"])
-            bytes_data = dataToString.encode('utf-8')
-            encoded_bytes = base64.b64encode(bytes_data)
-            encoded_string = encoded_bytes.decode('utf-8')
+        if response.status_code == 200:
+            try:
+                json_response = response.json()
+                data = json_response.get("data")
+                
+                if data and isinstance(data, dict):
+                    dataToString = json.dumps(data)
+                    bytes_data = dataToString.encode('utf-8')
+                    encoded_bytes = base64.b64encode(bytes_data)
+                    encoded_string = encoded_bytes.decode('utf-8')
 
-            self.tokenExp = response.json()["data"]["timestamp"]
-            self.tokenExp += 4 * 60 * 60 * 1000
-
-            print("Login successful!")
-            self.token = encoded_string
-            return self.token
+                    self.tokenExp = data.get("timestamp")
+                    if self.tokenExp:
+                        self.tokenExp += 4 * 60 * 60 * 1000
+                    
+                    print("Login successful!")
+                    self.token = encoded_string
+                    return self.token
+                else:
+                    print(f"Login failed: 'data' is missing or not a dictionary. Response: {json_response}")
+                    return None
+            except ValueError:
+                print(f"Login failed: Invalid JSON response. Status Code: {response.status_code}, Response: {response.text}")
+                return None
         else:
             print(
-                f"Login failed or 'data' not found in response. Status Code: {response.status_code}, Response: {response.json()}")
+                f"Login failed. Status Code: {response.status_code}, Response: {response.text}")
             return None
 
     def extract_powerstations(self, json_str):
