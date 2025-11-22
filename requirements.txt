@@ -21,8 +21,8 @@ Jinja2==3.1.6
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
-numpy==2.3.0
-packaging==25.0
+numpy==1.26.4 
+packaging==24.2
 paho-mqtt==2.1.0
 pandas==2.2.3
 pyasn1==0.6.1
