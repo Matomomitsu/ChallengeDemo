@@ -57,5 +57,5 @@ watchfiles==1.0.5
 websockets==15.0.1
 wheel==0.45.1
 langchain==0.3.0
-langchain-groq
-langchain-community
+langchain-groq==0.3.2
+langchain-community==0.3.0
