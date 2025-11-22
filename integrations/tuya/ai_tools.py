@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import time
+import difflib
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional
@@ -505,10 +506,10 @@ def build_scene_payload_from_instructions(
 
     device_context, properties_context, scenes_context = _get_scene_builder_context(workflow, resolved_space)
 
-    if device_ids:
-        device_set = set(device_ids)
-        device_context = [d for d in device_context if d["id"] in device_set]
-        properties_context = {k: v for k, v in properties_context.items() if k in device_set}
+    # if device_ids:
+    #     device_set = set(device_ids)
+    #     device_context = [d for d in device_context if d["id"] in device_set]
+    #     properties_context = {k: v for k, v in properties_context.items() if k in device_set}
 
     hints: Dict[str, Any] = {}
     if name_hint:
@@ -570,6 +571,42 @@ def build_scene_payload_from_instructions(
     }
 
 
+def _validate_and_fix_payload_ids(payload: Dict[str, Any], workflow: TuyaAutomationWorkflow) -> Dict[str, Any]:
+    space_id = payload.get("space_id")
+    if not space_id:
+        return payload
+    
+    # Load known devices (allow stale to avoid latency)
+    context = _load_space_context(workflow, space_id, allow_stale=True)
+    known_devices = {d.id for d in context.get("devices", [])}
+    if not known_devices:
+        return payload
+
+    def fix_id(entity_id: str) -> str:
+        if entity_id in known_devices:
+            return entity_id
+        # Try fuzzy match
+        matches = difflib.get_close_matches(entity_id, known_devices, n=1, cutoff=0.8)
+        if matches:
+            print(f"⚠️ Auto-corrected device ID {entity_id} to {matches[0]}")
+            return matches[0]
+        return entity_id
+
+    # Fix conditions
+    if "conditions" in payload:
+        for cond in payload["conditions"]:
+            if "entity_id" in cond:
+                cond["entity_id"] = fix_id(cond["entity_id"])
+    
+    # Fix actions
+    if "actions" in payload:
+        for action in payload["actions"]:
+            if "entity_id" in action:
+                action["entity_id"] = fix_id(action["entity_id"])
+                
+    return payload
+
+
 def create_and_enable_automation(
     payload: Dict[str, Any],
     *,
@@ -579,6 +616,10 @@ def create_and_enable_automation(
     if not confirm:
         raise PermissionError("Creation requires explicit confirmation")
     workflow, _ = _build_workflow()
+    
+    # Validate and fix IDs to handle potential LLM typos
+    payload = _validate_and_fix_payload_ids(payload, workflow)
+
     try:
         result = workflow.create_scenes([payload])[0]
     except TuyaApiError as exc:
