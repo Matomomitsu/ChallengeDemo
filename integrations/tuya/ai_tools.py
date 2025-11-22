@@ -236,8 +236,10 @@ def _normalize_heuristic_params(params: Dict[str, Any]) -> Dict[str, Any]:
         normalized.setdefault("status_value", threshold_value)
         normalized.pop("threshold_percent", None)
 
-    if "threshold" in normalized and "pv_threshold_w" not in normalized:
-        normalized["pv_threshold_w"] = normalized["threshold"]
+    if "threshold" in normalized:
+        normalized.setdefault("status_value", normalized["threshold"])
+        if "pv_threshold_w" not in normalized:
+            normalized["pv_threshold_w"] = normalized["threshold"]
 
     pv_threshold_alias_keys = [
         "pv_threshold",

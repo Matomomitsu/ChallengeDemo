@@ -54,7 +54,7 @@ function fetchChatPayload(question) {
     .then((res) =>
       res
         .json()
-        .catch(() => ({ }))
+        .catch(() => ({}))
         .then((json) => ({ status: res.status, json, latency: Math.round(performance.now() - startedAt) }))
     );
 }
@@ -112,7 +112,7 @@ function initCard1() {
   const explainSteps = document.getElementById('explain-steps');
   const explainStats = document.getElementById('explain-stats');
   const trigger = document.getElementById('testar-funcao-1');
-  const question = 'Qual o status da minha bateria';
+  const question = 'What is my battery status';
 
   function toggleExplainPanel(event) {
     if (event) event.preventDefault();
@@ -133,37 +133,37 @@ function initCard1() {
     if (explainStats) explainStats.innerHTML = '';
     if (loadingEl) loadingEl.style.display = 'block';
 
-    const typingPromise = typeText(typingEl, 'Usuário: ' + question, 35);
+    const typingPromise = typeText(typingEl, 'User: ' + question, 35);
     const fetchPromise = fetchChatPayload(question);
 
     typingPromise
       .then(() => fetchPromise)
       .then((payload) => {
         if (loadingEl) loadingEl.style.display = 'none';
-        const answer = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
+        const answer = (payload.json && (payload.json.response || payload.json.message)) || 'No response.';
         if (responseEl) {
-          responseEl.textContent = 'Assistente: ' + sanitizeResponse(answer);
+          responseEl.textContent = 'Assistant: ' + sanitizeResponse(answer);
           if (!responseEl.classList.contains('chat-bubble')) {
             responseEl.classList.add('chat-bubble', 'chat-assistant');
           }
         }
         if (toggleExplain) toggleExplain.style.display = 'inline-flex';
         if (explainSteps) {
-          renderStep(explainSteps, 'M5 12h14M13 5l7 7-7 7', 'Entrada enviada: "' + question + '"');
+          renderStep(explainSteps, 'M5 12h14M13 5l7 7-7 7', 'Input sent: "' + question + '"');
           renderStep(explainSteps, 'M2 12h20', 'Endpoint: /api/chat (POST)');
-          renderStep(explainSteps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi');
+          renderStep(explainSteps, 'M6 12l4 4 8-8', 'Orchestration: call_geminiapi');
         }
         if (explainStats) {
           const statsRow = document.createElement('div');
           statsRow.className = 'paragraph_small';
-          statsRow.textContent = 'Status HTTP: ' + payload.status + ' · Tempo de resposta: ' + payload.latency + ' ms';
+          statsRow.textContent = 'HTTP Status: ' + payload.status + ' · Response time: ' + payload.latency + ' ms';
           explainStats.appendChild(statsRow);
         }
       })
       .catch((err) => {
         if (loadingEl) loadingEl.style.display = 'none';
         if (typingEl) typingEl.textContent = '';
-        if (responseEl) responseEl.textContent = 'Erro ao consultar a API.';
+        if (responseEl) responseEl.textContent = 'Error querying API.';
         console.error(err);
       });
   });
@@ -178,7 +178,7 @@ function initCard2() {
   const toggle = document.getElementById('toggle-explain-2');
   const panel = document.getElementById('explain-panel-2');
   const trigger = document.getElementById('testar-funcao-2');
-  const question = 'Otimize meu uso';
+  const question = 'Optimize my usage';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -199,38 +199,38 @@ function initCard2() {
     }
     if (loading) loading.style.display = 'block';
 
-    const typingPromise = typeText(typing, 'Usuário: ' + question, 35);
+    const typingPromise = typeText(typing, 'User: ' + question, 35);
     const fetchPromise = fetchChatPayload(question);
 
     typingPromise
       .then(() => fetchPromise)
       .then((payload) => {
         if (loading) loading.style.display = 'none';
-        const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
+        const raw = (payload.json && (payload.json.response || payload.json.message)) || 'No response.';
         if (answer) {
-          answer.textContent = 'Assistente: ' + sanitizeResponse(raw);
+          answer.textContent = 'Assistant: ' + sanitizeResponse(raw);
           answer.classList.add('chat-bubble', 'chat-assistant', 'chat-scroll', 'typography-readable');
         }
         if (toggle) toggle.style.display = 'inline-flex';
         if (steps) {
-          renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Entrada do usuário enviada: "' + question + '"');
-          renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Workflow: Ativar modelo → Invocar ferramenta de otimização → Consolidar recomendações');
-          renderStep(steps, 'M3 6h18', 'Extração de dados: estação demonstração (parâmetros SOC e P_meter)');
-          renderStep(steps, 'M4 7h16M4 12h12', 'Normalização e análise: histórico de 7 dias com parâmetros reais minuto a minuto');
-          renderStep(steps, 'M2 12h20', 'Endpoint chamado: /api/chat (POST)');
-          renderStep(steps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi + usage_optimizer → recomendações úteis');
+          renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'User input sent: "' + question + '"');
+          renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Workflow: Activate model → Invoke optimization tool → Consolidate recommendations');
+          renderStep(steps, 'M3 6h18', 'Data extraction: demo station (SOC and P_meter parameters)');
+          renderStep(steps, 'M4 7h16M4 12h12', 'Normalization and analysis: 7-day history with real parameters minute by minute');
+          renderStep(steps, 'M2 12h20', 'Endpoint called: /api/chat (POST)');
+          renderStep(steps, 'M6 12l4 4 8-8', 'Orchestration: call_geminiapi + usage_optimizer → useful recommendations');
         }
         if (stats) {
           const statsRow = document.createElement('div');
           statsRow.className = 'paragraph_small';
-          statsRow.textContent = 'Status HTTP: ' + payload.status + ' · Tempo de resposta: ' + payload.latency + ' ms';
+          statsRow.textContent = 'HTTP Status: ' + payload.status + ' · Response time: ' + payload.latency + ' ms';
           stats.appendChild(statsRow);
         }
       })
       .catch((err) => {
         if (loading) loading.style.display = 'none';
         if (typing) typing.textContent = '';
-        if (answer) answer.textContent = 'Erro ao consultar a API.';
+        if (answer) answer.textContent = 'Error querying API.';
         console.error(err);
       });
   });
@@ -246,7 +246,7 @@ function initCard3() {
   const stats = document.getElementById('explain-stats-3');
   const trigger = document.getElementById('testar-funcao-3');
   const followUpBtn = document.getElementById('seguir-funcao-3');
-  const question = 'Teve algum alerta nas minhas estações no mês de outubro/2025 ?';
+  const question = 'Were there any alerts on my stations in October 2025?';
 
   function togglePanel(event) {
     if (event) event.preventDefault();
@@ -270,23 +270,23 @@ function initCard3() {
     if (loading) loading.style.display = 'none';
     const cleaned = sanitizeResponse(raw);
     if (answer) {
-      answer.textContent = 'Assistente: ' + cleaned;
+      answer.textContent = 'Assistant: ' + cleaned;
       answer.classList.add('chat-bubble', 'chat-assistant', 'chat-scroll', 'typography-readable');
     }
     if (toggle) toggle.style.display = 'inline-flex';
     if (followUpBtn) followUpBtn.style.display = 'inline-block';
     if (steps) {
-      renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Entrada enviada: "' + question + '"');
+      renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Input sent: "' + question + '"');
       renderStep(steps, 'M2 12h20', 'Endpoint: /api/chat (POST)');
-      renderStep(steps, 'M3 6h18', 'Dados consultados: inversor da rede demonstração');
-      renderStep(steps, 'M4 7h16M4 12h12', 'P_meter minuto a minuto e SOC minuto a minuto');
-      renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Análise estatística sobre médias e padrões (7 dias)');
-      renderStep(steps, 'M6 12l4 4 8-8', 'Orquestração: call_geminiapi + usage_optimizer → recomendações');
+      renderStep(steps, 'M3 6h18', 'Data queried: demo network inverter');
+      renderStep(steps, 'M4 7h16M4 12h12', 'P_meter minute by minute and SOC minute by minute');
+      renderStep(steps, 'M4 7h16M4 12h16M4 17h10', 'Statistical analysis on averages and patterns (7 days)');
+      renderStep(steps, 'M6 12l4 4 8-8', 'Orchestration: call_geminiapi + usage_optimizer → recommendations');
     }
     if (stats) {
       const statsRow = document.createElement('div');
       statsRow.className = 'paragraph_small';
-      statsRow.textContent = 'Status HTTP: ' + payload.status + ' · Tempo de resposta: ' + payload.latency + ' ms';
+      statsRow.textContent = 'HTTP Status: ' + payload.status + ' · Response time: ' + payload.latency + ' ms';
       stats.appendChild(statsRow);
     }
   }
@@ -297,20 +297,20 @@ function initCard3() {
     if (answer) answer.textContent = '';
     if (loading) loading.style.display = 'block';
 
-    const typingPromise = typeText(typing, 'Usuário: ' + questionText, 35);
+    const typingPromise = typeText(typing, 'User: ' + questionText, 35);
     const fetchPromise = fetchChatPayload(questionText);
 
     return typingPromise
       .then(() => fetchPromise)
       .then((payload) => {
-        const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
+        const raw = (payload.json && (payload.json.response || payload.json.message)) || 'No response.';
         handleSuccess(payload, raw);
         return payload;
       })
       .catch((err) => {
         if (loading) loading.style.display = 'none';
         if (typing) typing.textContent = '';
-        if (answer) answer.textContent = 'Erro ao consultar a API.';
+        if (answer) answer.textContent = 'Error querying API.';
         console.error(err);
         throw err;
       });
@@ -328,31 +328,31 @@ function initCard3() {
   if (followUpBtn) {
     followUpBtn.addEventListener('click', (event) => {
       event.preventDefault();
-      const followQuestion = 'Me explique melhor o primeiro erro retornado';
+      const followQuestion = 'Explain the first error returned better';
       if (loading) loading.style.display = 'block';
       const stack = typing ? typing.parentNode : null;
       if (stack) {
         const userBubble = document.createElement('div');
         userBubble.className = 'paragraph_large chat-bubble chat-user';
-        userBubble.textContent = 'Usuário: ' + followQuestion;
+        userBubble.textContent = 'User: ' + followQuestion;
         appendBeforeDivider(userBubble);
       }
       fetchChatPayload(followQuestion)
         .then((payload) => {
           if (loading) loading.style.display = 'none';
-          const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
+          const raw = (payload.json && (payload.json.response || payload.json.message)) || 'No response.';
           const cleaned = sanitizeResponse(raw);
           const assist = document.createElement('div');
           assist.className = 'paragraph_large chat-bubble chat-assistant chat-scroll typography-readable';
-          assist.textContent = 'Assistente: ' + cleaned;
+          assist.textContent = 'Assistant: ' + cleaned;
           appendBeforeDivider(assist);
           if (steps) {
-            renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Seguimento enviado: "' + followQuestion + '"');
+            renderStep(steps, 'M5 12h14M13 5l7 7-7 7', 'Follow-up sent: "' + followQuestion + '"');
           }
           if (stats) {
             const statsRow = document.createElement('div');
             statsRow.className = 'paragraph_small';
-            statsRow.textContent = 'Status HTTP: ' + payload.status + ' · Tempo de resposta: ' + payload.latency + ' ms';
+            statsRow.textContent = 'HTTP Status: ' + payload.status + ' · Response time: ' + payload.latency + ' ms';
             stats.appendChild(statsRow);
           }
         })
@@ -393,9 +393,9 @@ function initCard4() {
 
   function handleCard(payload, question, nextMode) {
     if (loading) loading.style.display = 'none';
-    const raw = (payload.json && (payload.json.response || payload.json.message)) || 'Sem resposta.';
+    const raw = (payload.json && (payload.json.response || payload.json.message)) || 'No response.';
     if (answer) {
-      answer.textContent = 'Assistente: ' + sanitizeResponse(raw);
+      answer.textContent = 'Assistant: ' + sanitizeResponse(raw);
       answer.classList.add('chat-bubble', 'chat-assistant', 'chat-scroll', 'typography-readable');
     }
     if (toggle) toggle.style.display = 'inline-flex';
@@ -406,7 +406,7 @@ function initCard4() {
       stats.innerHTML = '';
       const statsRow = document.createElement('div');
       statsRow.className = 'paragraph_small';
-      statsRow.textContent = 'Status HTTP: ' + payload.status + ' · Tempo de resposta: ' + payload.latency + ' ms';
+      statsRow.textContent = 'HTTP Status: ' + payload.status + ' · Response time: ' + payload.latency + ' ms';
       stats.appendChild(statsRow);
     }
     setActiveChargingMode(nextMode);
@@ -421,14 +421,14 @@ function initCard4() {
     let question;
     let nextMode;
     if (chargingMode === 1) {
-      question = 'Altere o modo de carregamento do meu EV charger para Pv Priority';
+      question = 'Change my EV charger charging mode to PV Priority';
       nextMode = 2;
     } else {
-      question = 'Altere o modo de carregamento do meu EV charger para Rápido';
+      question = 'Change my EV charger charging mode to Fast';
       nextMode = 1;
     }
 
-    const typingPromise = typeText(typing, 'Usuário: ' + question, 35);
+    const typingPromise = typeText(typing, 'User: ' + question, 35);
     const fetchPromise = fetchChatPayload(question);
 
     typingPromise
@@ -439,7 +439,7 @@ function initCard4() {
       .catch((err) => {
         if (loading) loading.style.display = 'none';
         if (typing) typing.textContent = '';
-        if (answer) answer.textContent = 'Erro ao consultar a API.';
+        if (answer) answer.textContent = 'Error querying API.';
         console.error(err);
       });
   }
@@ -472,7 +472,7 @@ function initFaq() {
     event.preventDefault();
     const isHidden = panel.style.display === 'none' || panel.style.display === '';
     panel.style.display = isHidden ? 'block' : 'none';
-    if (label) label.textContent = isHidden ? 'Ocultar perguntas' : 'Mostrar perguntas';
+    if (label) label.textContent = isHidden ? 'Hide questions' : 'Show questions';
   });
 }
 

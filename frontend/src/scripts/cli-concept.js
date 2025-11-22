@@ -46,7 +46,7 @@
     if (!functionsEmpty || !functionsPreview) return;
     functionsPreview.innerHTML = '';
     functionsEmpty.style.display = 'block';
-    functionsEmpty.textContent = message || 'Preparando integrações em tempo real…';
+    functionsEmpty.textContent = message || 'Preparing real-time integrations…';
   }
 
   function updateFunctionsPreview(executed) {
@@ -55,7 +55,7 @@
 
     if (!executed || !executed.length) {
       functionsEmpty.style.display = 'block';
-      functionsEmpty.textContent = 'Nenhuma função foi necessária nesta pergunta.';
+      functionsEmpty.textContent = 'No function was needed for this question.';
       return;
     }
 
@@ -66,18 +66,18 @@
 
       const header = document.createElement('div');
       header.className = 'paragraph_small';
-      header.innerHTML = `<strong>${fn.name || 'Função desconhecida'}</strong>`;
+      header.innerHTML = `<strong>${fn.name || 'Unknown function'}</strong>`;
       wrapper.appendChild(header);
 
       const subtitle = document.createElement('div');
       subtitle.className = 'paragraph_small text-color_secondary';
-      subtitle.textContent = 'Retorno antes da resposta do modelo';
+      subtitle.textContent = 'Return before model response';
       wrapper.appendChild(subtitle);
 
       if (fn.args && Object.keys(fn.args).length) {
         const args = document.createElement('div');
         args.className = 'paragraph_small text-color_secondary cli-concept-functions-args';
-        args.textContent = `Argumentos: ${JSON.stringify(fn.args)}`;
+        args.textContent = `Arguments: ${JSON.stringify(fn.args)}`;
         wrapper.appendChild(args);
       }
 
@@ -101,7 +101,7 @@
 
     const defaultOption = document.createElement('option');
     defaultOption.value = '';
-    defaultOption.textContent = 'Usar planta padrão (demonstração)';
+    defaultOption.textContent = 'Use default plant (demo)';
     plantSelect.appendChild(defaultOption);
 
     plants.forEach((plant) => {
@@ -128,7 +128,7 @@
 
   function loadPlantOptions() {
     if (!plantSelect) return Promise.resolve();
-    setPlantStatus('Carregando plantas disponíveis…');
+    setPlantStatus('Loading available plants…');
     plantSelect.disabled = true;
     return fetch('/api/plants')
       .then((res) => {
@@ -139,13 +139,13 @@
         const plants = Array.isArray(data?.plants) ? data.plants : [];
         populatePlantOptions(plants);
         if (plants.length) {
-          setPlantStatus('Escolha uma planta para personalizar a análise.');
+          setPlantStatus('Choose a plant to customize the analysis.');
         } else {
-          setPlantStatus('Nenhuma planta adicional disponível. Mantendo a padrão.');
+          setPlantStatus('No additional plants available. Keeping default.');
         }
       })
       .catch(() => {
-        setPlantStatus('Não foi possível carregar as plantas. Usaremos a configuração padrão.');
+        setPlantStatus('Could not load plants. Using default configuration.');
       })
       .finally(() => {
         plantSelect.disabled = false;
@@ -155,10 +155,10 @@
   function inferFunctions(text) {
     const value = (text || '').toLowerCase();
     const list = [];
-    if (/(status|soc|bateria)/.test(value)) list.push('get_powerstation_battery_status');
-    if (/(alerta|alarme|erro)/.test(value)) list.push('get_alarms_by_range');
-    if (/(otimiz|consumo|economia)/.test(value)) list.push('usage_optimizer');
-    if (/(configur|modo|charger|carregador)/.test(value)) list.push('change_ev_charger_status');
+    if (/(status|soc|battery|bateria)/.test(value)) list.push('get_powerstation_battery_status');
+    if (/(alert|alarm|error|erro)/.test(value)) list.push('get_alarms_by_range');
+    if (/(optimiz|consum|sav|econom)/.test(value)) list.push('usage_optimizer');
+    if (/(config|mode|charg|carregador)/.test(value)) list.push('change_ev_charger_status');
     return Array.from(new Set(list));
   }
 
@@ -244,10 +244,10 @@
     setFunctionsLoading();
 
     if (!selectedPlantId) {
-      setPlantStatus('Usando a planta padrão demonstração.');
+      setPlantStatus('Using default demo plant.');
     }
 
-    const userTyping = typeInto(userBubble, 'Usuário: ', query, 18);
+    const userTyping = typeInto(userBubble, 'User: ', query, 18);
     const start = performance.now();
     const requestBody = { user_input: query };
     if (selectedPlantId) requestBody.plant_id = selectedPlantId;
@@ -266,8 +266,8 @@
     Promise.all([userTyping, request])
       .then(([, payload]) => {
         updateFunctionsPreview(payload?.json?.functions_preview);
-        const rawAnswer = sanitize(payload?.json?.response || payload?.json?.message || 'Sem resposta.');
-        const answer = rawAnswer.replace(/^Assistente:\s*/i, '');
+        const rawAnswer = sanitize(payload?.json?.response || payload?.json?.message || 'No response.');
+        const answer = rawAnswer.replace(/^Assistant:\s*/i, '').replace(/^Assistente:\s*/i, '');
         let assistantBubble;
         if (turn === 1 && response) {
           assistantBubble = response;
@@ -283,20 +283,20 @@
         }
         if (fallback && usedPowerstation) {
           finalAnswer = answer
-            ? `${answer}\n\n(Observação: não encontramos dados recentes para a planta selecionada. Voltamos para demonstração – powerstation_id ${usedPowerstation}.)`
-            : `Não encontramos dados recentes para a planta selecionada. Voltamos para demonstração – powerstation_id ${usedPowerstation}.`;
+            ? `${answer}\n\n(Note: no recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.)`
+            : `No recent data found for selected plant. Reverted to demo – powerstation_id ${usedPowerstation}.`;
         }
         if (plantStatus) {
           if (fallback) {
-            setPlantStatus('Sem dados recentes para a planta escolhida. Voltamos para demonstração.');
+            setPlantStatus('No recent data for chosen plant. Reverted to demo.');
           } else if (selectedPlantId) {
             const label = getSelectedPlantLabel() || usedPowerstation || selectedPlantId;
-            setPlantStatus(`Consultando dados da planta ${label}.`);
+            setPlantStatus(`Querying data for plant ${label}.`);
           } else {
-            setPlantStatus('Usando a planta padrão demonstração.');
+            setPlantStatus('Using default demo plant.');
           }
         }
-        return typeInto(assistantBubble, 'Assistente: ', finalAnswer, 16).then(() => {
+        return typeInto(assistantBubble, 'Assistant: ', finalAnswer, 16).then(() => {
           updateMetrics(payload, inferred);
           setLoading(false);
           if (functionsPanel && functionsToggle && payload?.json?.functions_preview?.length) {
@@ -307,11 +307,11 @@
       .catch((err) => {
         console.error(err);
         const assistantBubble = turn === 1 && response ? response : createAssistantBubble();
-        assistantBubble.textContent = 'Assistente: Não consegui acessar a API no momento. Tente novamente.';
+        assistantBubble.textContent = 'Assistant: Could not access API at the moment. Try again.';
         if (latencyLabel) latencyLabel.textContent = '—';
         if (functionsLabel) functionsLabel.textContent = '—';
-        setFunctionsLoading('Não foi possível carregar a pré-visualização.');
-        if (plantStatus) setPlantStatus('Não foi possível concluir a consulta. Tente novamente.');
+        setFunctionsLoading('Could not load preview.');
+        if (plantStatus) setPlantStatus('Could not complete query. Try again.');
         setLoading(false);
       });
   }
@@ -335,12 +335,12 @@
       selectedPlantId = plantSelect.value || '';
       if (selectedPlantId) {
         const label = getSelectedPlantLabel();
-        setPlantStatus(`Preparando respostas com dados da planta ${label}.`);
+        setPlantStatus(`Preparing answers with data from plant ${label}.`);
       } else {
-        setPlantStatus('Usando a planta padrão demonstração.');
+        setPlantStatus('Using default demo plant.');
       }
     });
-    loadPlantOptions().catch(() => {});
+    loadPlantOptions().catch(() => { });
   }
 
   if (suggestionsToggle && suggestions) {

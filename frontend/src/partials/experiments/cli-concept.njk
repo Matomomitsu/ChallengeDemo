@@ -200,13 +200,13 @@
             <div class="card card_body shadow_medium">
               <div class="flex_vertical gap-small cli-concept-stack chat-scroll" id="cli-concept-stack">
                 <div class="cli-concept-plant-picker flex_vertical gap-xxsmall">
-                  <label for="cli-concept-plant-select" class="paragraph_small text-color_secondary">Planta monitorada</label>
+                  <label for="cli-concept-plant-select" class="paragraph_small text-color_secondary">Monitored Plant</label>
                   <select id="cli-concept-plant-select" class="input_field is-select w-select">
-                    <option value="">Usar planta padrão (demonstração)</option>
+                    <option value="">Use default plant (demo)</option>
                   </select>
-                  <div id="cli-concept-plant-status" class="paragraph_tiny text-color_secondary">Carregando plantas disponíveis…</div>
+                  <div id="cli-concept-plant-status" class="paragraph_tiny text-color_secondary">Loading available plants…</div>
                 </div>
-                <div class="eyebrow">Assistente</div>
+                <div class="eyebrow">Assistant</div>
                 <div
                   id="cli-concept-typing"
                   class="paragraph_large chat-bubble chat-user"
@@ -217,7 +217,7 @@
                   class="paragraph_small text-color_secondary"
                   style="display: none"
                 >
-                  Sincronizando dados operacionais…
+                  Synchronizing operational data…
                 </div>
                 <div
                   id="cli-concept-response"
@@ -228,97 +228,97 @@
             </div>
           </section>
           <div class="header">
-            <div class="eyebrow">Demonstração ao vivo</div>
-            <h2>Veja a inteligência do BotSolar em ação</h2>
+            <div class="eyebrow">Live Demo</div>
+            <h2>See BotSolar intelligence in action</h2>
             <p class="subheading">
-               Conecte dados reais da GoodWe, crie consultas personalizadas e visualize como cada função é executada em tempo real.
+               Connect real GoodWe data, create custom queries, and visualize how each function is executed in real-time.
             </p>
             <div class="w-layout-hflex flex_horizontal gap-xsmall cli-concept-input-row">
               <input
                 id="cli-concept-input"
                 class="input_field w-input"
                 type="text"
-                placeholder="Pergunte algo, ex: “Qual o status da bateria da demonstração?”"
+                placeholder="Ask something, e.g., “What is the demo battery status?”"
                 maxlength="500"
               />
-              <a href="#" id="cli-concept-send" class="button w-button">Enviar</a>
+              <a href="#" id="cli-concept-send" class="button w-button">Send</a>
             </div>
             <div class="paragraph_small text-color_secondary">
-              <strong>Latência:</strong> <span id="cli-concept-latency">—</span>
+              <strong>Latency:</strong> <span id="cli-concept-latency">—</span>
             </div>
             <div class="paragraph_small text-color_secondary cli-concept-functions-meta">
-              <strong>Funções acionadas:</strong> <span id="cli-concept-functions">—</span>
+              <strong>Triggered functions:</strong> <span id="cli-concept-functions">—</span>
               <button id="cli-concept-functions-toggle" class="cli-concept-functions-toggle" type="button">
-                Ver detalhes
+                View details
                 <span aria-hidden="true">▾</span>
               </button>
             </div>
             <div class="cli-concept-functions-panel" id="cli-concept-functions-panel">
               <div class="cli-concept-functions-empty" id="cli-concept-functions-empty">
-                Assim que uma função for acionada, mostramos aqui o retorno bruto consumido pelo modelo.
+                As soon as a function is triggered, we show the raw return consumed by the model here.
               </div>
               <div id="cli-concept-functions-preview"></div>
             </div>
             <div class="divider margin-top_small"></div>
             <button id="cli-concept-suggestions-toggle" class="cli-concept-suggestions-toggle" type="button">
-              Sugestões rápidas
+              Quick suggestions
               <span aria-hidden="true">▾</span>
             </button>
             <div class="cli-concept-suggestions" id="cli-concept-suggestions" aria-live="polite">
               <div class="cli-concept-suggestions-group">
                 <button class="cli-concept-suggestions-summary" type="button" data-group="realtime">
-                  Converse com o seu inversor em tempo real
+                  Chat with your inverter in real-time
                   <span aria-hidden="true">▾</span>
                 </button>
                 <div class="cli-concept-suggestions-items" data-group-items="realtime">
-                  <a href="#" data-query="qual o status da minha bateria" class="button is-secondary w-button">Status da bateria</a>
-                  <a href="#" data-query="mostre a energia gerada hoje" class="button is-secondary w-button">Energia gerada hoje</a>
-                  <a href="#" data-query="houve algum alerta ativo agora?" class="button is-secondary w-button">Alertas em andamento</a>
+                  <a href="#" data-query="What is my battery status" class="button is-secondary w-button">Battery status</a>
+                  <a href="#" data-query="Show energy generated today" class="button is-secondary w-button">Energy generated today</a>
+                  <a href="#" data-query="Are there any active alerts now?" class="button is-secondary w-button">Active alerts</a>
                 </div>
               </div>
               <div class="cli-concept-suggestions-group">
                 <button class="cli-concept-suggestions-summary" type="button" data-group="optimize">
-                  Otimize meu uso
+                  Optimize my usage
                   <span aria-hidden="true">▾</span>
                 </button>
                 <div class="cli-concept-suggestions-items" data-group-items="optimize">
-                  <a href="#" data-query="otimize meu uso" class="button is-secondary w-button">Plano de otimização</a>
-                  <a href="#" data-query="qual o melhor horário para carregar meu carro elétrico?" class="button is-secondary w-button">Horário para EV</a>
+                  <a href="#" data-query="Optimize my usage" class="button is-secondary w-button">Optimization plan</a>
+                  <a href="#" data-query="What is the best time to charge my EV?" class="button is-secondary w-button">EV Schedule</a>
                 </div>
               </div>
               <div class="cli-concept-suggestions-group">
                 <button class="cli-concept-suggestions-summary" type="button" data-group="automation">
-                  Automação residencial
+                  Home Automation
                   <span aria-hidden="true">▾</span>
                 </button>
                 <div class="cli-concept-suggestions-items" data-group-items="automation">
                   <a
                     href="#"
-                    data-query="como você pode me ajudar com automação residencial?"
+                    data-query="How can you help me with home automation?"
                     class="button is-secondary w-button"
                   >
-                    Suporte em automação
+                    Automation support
                   </a>
                   <a
                     href="#"
-                    data-query="liste meus dispositivos e cenas de automação"
+                    data-query="List my devices and automation scenes"
                     class="button is-secondary w-button"
                   >
-                    Dispositivos e cenas
+                    Devices and scenes
                   </a>
                   <a
                     href="#"
-                    data-query="me ajude a criar uma nova automação"
+                    data-query="Help me create a new automation"
                     class="button is-secondary w-button"
                   >
-                    Criar nova automação
+                    Create new automation
                   </a>
                   <a
                     href="#"
-                    data-query="sugira automações para integrar meus dispositivos SmartLife"
+                    data-query="Suggest automations to integrate my SmartLife devices"
                     class="button is-secondary w-button"
                   >
-                    Sugestões SmartLife
+                    SmartLife suggestions
                   </a>
                 </div>
               </div>
