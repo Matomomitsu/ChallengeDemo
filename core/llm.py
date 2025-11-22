@@ -5,6 +5,8 @@ import time
 import threading
 import asyncio
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, Optional, List, Sequence
 
 from dotenv import load_dotenv
@@ -40,12 +42,54 @@ GROQ_MODEL = "openai/gpt-oss-120b"  # User requested model
 if not GROQ_API_KEY:
     print("⚠️ GROQ_API_KEY not found in .env. Please add it.")
 
+DEFAULT_STATION_NAME = os.getenv("DEFAULT_STATION_NAME", "").strip()
+DEFAULT_STATION_ID = os.getenv("DEFAULT_STATION_ID", "").strip()
+DEFAULT_POWERSTATION_ID = os.getenv("DEFAULT_POWERSTATION_ID", "").strip()
+GOODWE_POWERSTATION_ID = os.getenv("GOODWE_POWERSTATION_ID", "").strip()
+
+def _get_default_powerstation_id() -> str:
+    """
+    Helper to resolve the default powerstation ID from env vars or by querying the API.
+    Ported from core/gemini.py logic.
+    """
+    # Check all possible env vars for the ID
+    candidate = DEFAULT_STATION_ID or DEFAULT_POWERSTATION_ID or GOODWE_POWERSTATION_ID
+    if candidate:
+        return candidate
+    
+    try:
+        api = goodweApi.GoodweApi()
+        plants = api.ListPlants() or {}
+        plant_list = plants.get("plants", []) if isinstance(plants, dict) else []
+        
+        # Try to match by name if provided
+        if DEFAULT_STATION_NAME:
+            for p in plant_list:
+                if (p.get("stationname") or "").strip().lower() == DEFAULT_STATION_NAME.strip().lower():
+                    return p.get("powerstation_id") or ""
+        
+        # Fallback to the first plant found
+        return (plant_list[0].get("powerstation_id") if plant_list else "") or ""
+    except Exception as e:
+        print(f"⚠️ Error resolving default powerstation ID: {e}")
+        return ""
+
+
+
+
 # --- Tuya Context ---
 # We reuse the TuyaContextManager from core.gemini for now to avoid code duplication.
 # In a full refactor, we would move it to a shared module like core.tuya_context.
 tuya_context = TuyaContextManager(DEFAULT_TUYA_SPACE_ID)
 
 # --- Tools Definition ---
+
+@tool
+def get_today_date() -> Dict[str, str]:
+    """Return today's date in ISO format (America/Sao_Paulo)."""
+    tz = ZoneInfo("America/Sao_Paulo")
+    now = datetime.now(tz)
+    return {"today": now.date().isoformat()}
 
 @tool
 def list_plants() -> Dict[str, Any]:
@@ -57,12 +101,12 @@ def list_plants() -> Dict[str, Any]:
 def get_powerstation_battery_status(powerstation_id: Optional[str] = None) -> Dict[str, Any]:
     """Return battery status for a powerstation. If powerstation_id is missing, use the configured default plant."""
     api = goodweApi.GoodweApi()
-    # Logic to handle default station if None is passed is handled inside GoodweApi or we can add it here
-    # For now, we pass None and let the API handle it or the agent to figure it out if it has context
-    # But existing gemini logic had a fallback. Let's rely on the agent or the API's internal default if implemented.
-    # Actually, the gemini dispatcher handled the default. We should probably replicate that or let the agent ask.
-    # For simplicity, we'll let the API handle it if it can, or return None.
-    return api.GetSoc(powerstation_id)
+    
+    target_id = powerstation_id or _get_default_powerstation_id()
+    if not target_id:
+        return {"error": "No powerstation_id provided and could not resolve default."}
+        
+    return api.GetSoc(target_id) or {"error": "Failed to retrieve battery status (API returned None)."}
 
 @tool
 def get_alarms_by_range(start_date: str, end_date: Optional[str] = None, status: str = "3", stationname: Optional[str] = None) -> Dict[str, Any]:
@@ -201,6 +245,7 @@ def tuya_trigger_scene(rule_id: str, confirm: bool = True) -> Dict[str, Any]:
 
 
 ALL_TOOLS = [
+    get_today_date,
     list_plants,
     get_powerstation_battery_status,
     get_alarms_by_range,
@@ -304,6 +349,8 @@ async def call_llm(user_input: str, powerstation_id: Optional[str] = None) -> Di
         
     except Exception as e:
         print(f"❌ Error in call_llm: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "response": f"❌ Error processing your request: {str(e)}",
             "functions_preview": [],
