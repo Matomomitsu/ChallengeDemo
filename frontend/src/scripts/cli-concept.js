@@ -222,7 +222,18 @@
     }
   }
 
-  function submit(question) {
+  async function getClientIp() {
+    try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (!res.ok) return null;
+        const j = await res.json();
+        return j?.ip || null;
+    } catch (e) {
+        return null;
+    }
+  }
+
+  async function submit(question) {
     const query = (question || '').trim();
     if (!query) return;
 
@@ -251,9 +262,14 @@
     const start = performance.now();
     const requestBody = { user_input: query };
     if (selectedPlantId) requestBody.plant_id = selectedPlantId;
+
+    const clientIp = await getClientIp();
+    const headers = { 'Content-Type': 'application/json' };
+    if (clientIp) headers['X-Real-Ip'] = clientIp;
+
     const request = fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(requestBody)
     })
       .then((res) =>

@@ -44,11 +44,28 @@ function smoothScrollTo(target, opts) {
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
 
-function fetchChatPayload(question) {
+async function getClientIp() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.ip || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchChatPayload(question) {
   const startedAt = performance.now();
+  const clientIp = await getClientIp();
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (clientIp) headers['X-Real-Ip'] = clientIp;
+
+
   return fetch(API_CHAT_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ user_input: question })
   })
     .then((res) =>
