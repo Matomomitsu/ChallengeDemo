@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
 class ChatRequest(BaseModel):
     user_input: str
     plant_id: Optional[str] = None
+    user_ip: Optional[str] = None
 
 
 class PlantInfo(BaseModel):
@@ -51,7 +52,7 @@ DEFAULT_STATION_ID = os.getenv("DEFAULT_STATION_ID")
 
 # Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(req_model: ChatRequest, request : Request):
     """
     🤖 AI-Powered Chat Interface
     
@@ -64,7 +65,15 @@ async def chat_endpoint(request: ChatRequest):
     Example: "How much solar energy did I generate yesterday?"
     """
     try:
-        result = await call_llm(request.user_input, powerstation_id=request.plant_id)
+        client_ip = getattr(request.state, "client_ip", None)
+
+        if client_ip and hasattr(req_model, "user_ip"):
+            setattr(req_model, "user_ip", client_ip)
+
+        if client_ip:
+            req_model.user_ip = client_ip
+
+        result = await call_llm(req_model.user_input, powerstation_id=req_model.plant_id, user_ip=req_model.user_ip)
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")

@@ -322,32 +322,38 @@ def get_agent_executor():
         threading.Thread(target=prewarm_scene_builder, daemon=True).start()
     return _agent_executor
 
-async def call_llm(user_input: str, powerstation_id: Optional[str] = None) -> Dict[str, Any]:
+_last_responses_by_ip: Dict[str, str] = {}
+
+async def call_llm(user_input: str, powerstation_id: Optional[str] = None, user_ip: Optional[str] = None) -> Dict[str, Any]:
     """
     Main entry point for the API.
     Mimics the return signature of the old call_geminiapi for compatibility.
     """
+    global _last_responses_by_ip
     try:
         agent = get_agent_executor()
-        
+
         # Augment input with Tuya context if needed
         augmented_input, _ = await tuya_context.augment_user_input(user_input)
-        
-        # We don't have chat history persistence in this simple function yet, 
-        # but the agent executor can handle it if we pass it.
-        # For now, we treat each call as stateless or rely on the client to send history (not implemented in old API).
-        
+
+        # Ensure chat_history is always a list of messages (not None or plain string)
+        raw_history = _last_responses_by_ip.get(user_ip) if user_ip else None
+        if raw_history is None:
+            chat_history = []  # no history available
+        elif isinstance(raw_history, list):
+            chat_history = raw_history
+        else:
+            chat_history = [{"role": "assistant", "content": str(raw_history)}]
+
         t0 = time.perf_counter()
-        result = await agent.ainvoke({"input": augmented_input})
+        result = await agent.ainvoke({"input": augmented_input, "chat_history": chat_history})
         duration = time.perf_counter() - t0
-        
+
         output = result.get("output", "")
-        
-        # Extract executed tools from intermediate steps if available
-        # AgentExecutor returns 'intermediate_steps' if return_intermediate_steps=True (default False)
-        # We might need to enable it to match the old API's "functions_preview".
-        # For now, we return a simplified response.
-        
+
+        if user_ip:
+            _last_responses_by_ip[user_ip] = [{"role": "assistant", "content": output}]
+
         return {
             "response": output,
             "functions_preview": [], # TODO: Extract from agent steps if needed
@@ -355,7 +361,7 @@ async def call_llm(user_input: str, powerstation_id: Optional[str] = None) -> Di
             "used_powerstation_id": powerstation_id,
             "timings": {"total_duration_s": duration},
         }
-        
+
     except Exception as e:
         print(f"❌ Error in call_llm: {e}")
         import traceback

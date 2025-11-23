@@ -6,6 +6,9 @@ import uvicorn
 import os
 from api import endpoints
 from core.alexa import router as alexa_router
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from typing import Callable
 from core import goodweApi
 from core import sqlite
 
@@ -52,6 +55,23 @@ app.include_router(alexa_router, prefix="/api")
 
 # Serve the generated Eleventy site at /demo
 app.mount("/demo", StaticFiles(directory=FRONTEND_DIR, html=True), name="demo")
+
+class ClientIPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Callable):
+        xff = request.headers.get("x-forwarded-for")
+        x_real = request.headers.get("x-real-ip")
+        if xff:
+            ip = xff.split(",")[0].strip()
+        elif x_real:
+            ip = x_real.split(",")[0].strip()
+        else:
+            ip = request.client.host if request.client else None
+
+        request.state.client_ip = ip
+        response = await call_next(request)
+        return response
+
+app.add_middleware(ClientIPMiddleware)
 
 # Back-compat: expose chat endpoint at top-level /chat for legacy front-end
 @app.post("/chat", response_model=endpoints.ChatResponse)
