@@ -165,18 +165,18 @@ def get_powerstation_power_and_income_by_year(powerstation_id: Optional[str] = N
     return api.GetPowerAndIncomeByYear(powerstation_id=target_id, date=date)
 
 @tool
-def get_ev_charger_status(powerstation_id: Optional[str] = None) -> Dict[str, Any]:
+def get_ev_charger_status() -> Dict[str, Any]:
     """Return EV charger status for a powerstation_id."""
     api = goodweApi.GoodweApi()
-    return api.GetEvChargerChargingMode(powerstation_id)
+    return api.GetEvChargerChargingMode(powerstation_id=DEFAULT_POWERSTATION_ID)
 
 @tool
-def change_ev_charger_status(charge_mode: int, powerstation_id: Optional[str] = None) -> Dict[str, Any]:
+def change_ev_charger_status(charge_mode: int) -> Dict[str, Any]:
     """Change the EV charger mode.
     charge_mode: 1 - Fast, 2 - PV Priority, 3 - PV & Battery.
     """
     api = goodweApi.GoodweApi()
-    return api.ChangeEvChargerChargingMode(powerstation_id=powerstation_id, charge_mode=charge_mode)
+    return api.ChangeEvChargerChargingMode(powerstation_id=DEFAULT_POWERSTATION_ID, charge_mode=charge_mode)
 
 @tool
 def optimize_usage(parsed_path: Optional[str] = None) -> Dict[str, Any]:
