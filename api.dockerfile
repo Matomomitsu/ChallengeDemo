@@ -12,10 +12,12 @@ RUN npm run build
 FROM python:3.13-alpine
 
 WORKDIR /app
-
-# Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# instala toolchain para build como .build-deps, instala libgcc/libstdc++ como runtime permanente
+RUN apk add --no-cache --virtual .build-deps build-base \
+    && apk add --no-cache libgcc libstdc++ \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 # Copy project files
 COPY ./api ./api
