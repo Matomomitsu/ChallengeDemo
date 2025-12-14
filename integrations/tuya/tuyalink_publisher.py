@@ -63,6 +63,18 @@ class TuyaLinkPublisher:
         self._client.on_disconnect = self._on_disconnect
         self._client.on_publish = self._on_publish
 
+        # Set Last Will and Testament (LWT) to report offline status on unexpected disconnect
+        will_topic = f"tylink/{self.device_id}/thing/property/report"
+        will_payload = json.dumps({
+            "msgId": "lwt",
+            "time": int(time.time() * 1000),
+            "data": {
+                "goodwe_ok": {"value": "offline"}
+            }
+        })
+        self._client.will_set(will_topic, will_payload, qos=1, retain=False)
+
+
     def _build_credentials(self) -> tuple[str, str]:
         timestamp = str(int(time.time()))
         username = (

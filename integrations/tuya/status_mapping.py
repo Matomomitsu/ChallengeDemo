@@ -10,3 +10,6 @@ STATUS_MAP = {
 }
 
 DEFAULT_STATUS = "idle"
+
+# Heartbeat DP for keeping device "fresh" in Tuya automation engine
+HEARTBEAT_DP_IDENTIFIER = "goodwe_ok"

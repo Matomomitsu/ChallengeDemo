@@ -1,11 +1,13 @@
-"""Bridge GoodWe SOC telemetry to TuyaLink MQTT."""
+"""Bridge GoodWe SOC telemetry to TuyaLink MQTT with dual-interval heartbeat strategy."""
 from __future__ import annotations
 
 import logging
 import os
 import random
 import re
+import signal
 import sys
+import threading
 import time
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -14,7 +16,7 @@ import json
 from dotenv import load_dotenv
 
 from core.goodweApi import GoodweApi
-from integrations.tuya.status_mapping import DEFAULT_STATUS, STATUS_MAP
+from integrations.tuya.status_mapping import DEFAULT_STATUS, STATUS_MAP, HEARTBEAT_DP_IDENTIFIER
 from integrations.tuya.tuyalink_publisher import build_publisher_from_env
 
 load_dotenv()
@@ -32,6 +34,12 @@ TUYA_PROPERTY_IDENTIFIERS = {
     "inverter_emonth_kwh": "Energia_Este_Mes",
     "kpi_day_income_usd": "Receita_Hoje",
 }
+
+# Thread-safe cache for telemetry data
+_cached_telemetry: Dict[str, Any] = {}
+_cache_lock = threading.Lock()
+_goodwe_status = "starting"  # Values: "ok", "error", "starting", "shutdown"
+_goodwe_status_lock = threading.Lock()
 
 
 def _snapshot_path() -> Path:
@@ -75,14 +83,26 @@ def _setup_logging() -> None:
     )
 
 
-def _read_poll_interval() -> int:
-    interval_str = os.getenv("TUYA_SOC_POLL_INTERVAL", "60").strip()
+def _read_heartbeat_interval() -> int:
+    """Read fast heartbeat interval (default: 10 seconds)."""
+    interval_str = os.getenv("TUYA_HEARTBEAT_INTERVAL", "10").strip()
     try:
         interval = int(interval_str)
     except ValueError:
-        LOGGER.warning("Invalid TUYA_SOC_POLL_INTERVAL '%s'; defaulting to 60", interval_str)
-        interval = 60
-    return max(10, interval)
+        LOGGER.warning("Invalid TUYA_HEARTBEAT_INTERVAL '%s'; defaulting to 10", interval_str)
+        interval = 10
+    return max(5, interval)  # Minimum 5 seconds
+
+
+def _read_data_poll_interval() -> int:
+    """Read GoodWe data polling interval (default: 300 seconds / 5 minutes)."""
+    interval_str = os.getenv("TUYA_DATA_POLL_INTERVAL", "300").strip()
+    try:
+        interval = int(interval_str)
+    except ValueError:
+        LOGGER.warning("Invalid TUYA_DATA_POLL_INTERVAL '%s'; defaulting to 300", interval_str)
+        interval = 300
+    return max(60, interval)  # Minimum 60 seconds
 
 
 def _extract_first_soc_entry(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -173,10 +193,183 @@ def _coerce_integer_metric(value: Any) -> Optional[int]:
     return int(round(number))
 
 
-def _sleep_with_jitter(base_seconds: int) -> None:
-    jitter = random.uniform(-MAX_JITTER_SECONDS, MAX_JITTER_SECONDS)
-    sleep_duration = max(5.0, base_seconds + jitter)
-    time.sleep(sleep_duration)
+def _get_goodwe_status() -> str:
+    """Get the current GoodWe connection status (thread-safe)."""
+    global _goodwe_status
+    with _goodwe_status_lock:
+        return _goodwe_status
+
+
+def _set_goodwe_status(status: str) -> None:
+    """Set the current GoodWe connection status (thread-safe)."""
+    global _goodwe_status
+    with _goodwe_status_lock:
+        _goodwe_status = status
+
+
+def _get_cached_telemetry() -> Dict[str, Any]:
+    """Get a copy of cached telemetry (thread-safe)."""
+    with _cache_lock:
+        return dict(_cached_telemetry)
+
+
+def _update_cached_telemetry(data: Dict[str, Any]) -> None:
+    """Update cached telemetry with new data (thread-safe)."""
+    with _cache_lock:
+        _cached_telemetry.update(data)
+
+
+def _fetch_goodwe_data(api: GoodweApi, powerstation_id: str) -> Dict[str, Any]:
+    """Fetch all telemetry data from GoodWe API and return Tuya-formatted properties."""
+    properties: Dict[str, Any] = {}
+
+    # Fetch SOC data
+    soc_payload = api.GetSoc(powerstation_id)
+    entry = _extract_first_soc_entry(soc_payload)
+    if not entry:
+        LOGGER.warning("No SOC data returned for plant %s", powerstation_id)
+    else:
+        soc_value = _coerce_soc(entry.get("power"))
+        status_value = _map_status(entry.get("status"))
+
+        if soc_value is None:
+            LOGGER.warning("Missing or invalid SOC 'power' value in response: %s", entry)
+        else:
+            properties[TUYA_PROPERTY_IDENTIFIERS["battery_soc"]] = soc_value
+            properties[TUYA_PROPERTY_IDENTIFIERS["status"]] = status_value
+
+    # Fetch monitor summary
+    summary = api.GetMonitorSummaryByPowerstationId(powerstation_id)
+    summary_data = (
+        summary.get("data")
+        if isinstance(summary, dict) and not summary.get("hasError")
+        else {}
+    )
+
+    if summary_data:
+        load_w = _coerce_power(summary_data.get("load"))
+        pv_w = _coerce_power(summary_data.get("pv"))
+        eday = _coerce_integer_metric(summary_data.get("eday"))
+        emonth = _coerce_integer_metric(summary_data.get("emonth"))
+        day_income = _coerce_integer_metric(summary_data.get("day_income"))
+
+        if load_w is not None:
+            properties[TUYA_PROPERTY_IDENTIFIERS["load_w"]] = load_w
+        if pv_w is not None:
+            properties[TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]] = pv_w
+        if eday is not None:
+            properties[TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]] = eday
+        if emonth is not None:
+            properties[TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]] = emonth
+        if day_income is not None:
+            properties[TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]] = day_income
+    elif isinstance(summary, dict) and summary.get("hasError"):
+        LOGGER.warning(
+            "Failed to fetch GoodWe monitor summary for plant %s: %s",
+            powerstation_id,
+            summary.get("msg") or summary.get("code") or summary,
+        )
+
+    return properties
+
+
+def _data_poll_loop(
+    api: GoodweApi,
+    powerstation_id: str,
+    publisher,
+    data_poll_interval: int,
+    stop_event: threading.Event,
+) -> None:
+    """Slow data poll loop - fetches from GoodWe every 5 minutes (configurable)."""
+    LOGGER.info("Data poll loop started (interval=%ss)", data_poll_interval)
+
+    while not stop_event.is_set():
+        try:
+            properties = _fetch_goodwe_data(api, powerstation_id)
+
+            if properties:
+                # Update cache with fresh data
+                _update_cached_telemetry(properties)
+                _set_goodwe_status("ok")
+
+                # Build and persist snapshot for local visualization
+                now_ts = int(time.time())
+                cached = _get_cached_telemetry()
+                snapshot: Dict[str, Any] = {
+                    "powerstation_id": powerstation_id,
+                    "timestamp": now_ts,
+                    "battery_soc": cached.get(TUYA_PROPERTY_IDENTIFIERS["battery_soc"]),
+                    "status": cached.get(TUYA_PROPERTY_IDENTIFIERS["status"]),
+                    "load_w": cached.get(TUYA_PROPERTY_IDENTIFIERS["load_w"]),
+                    "pv_power_w": cached.get(TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]),
+                    "eday_kwh": cached.get(TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]),
+                    "emonth_kwh": cached.get(TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]),
+                    "day_income": cached.get(TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]),
+                    "tuya": cached,
+                }
+                _persist_snapshot(snapshot)
+
+                LOGGER.info(
+                    "Fetched GoodWe data for plant %s: %s",
+                    powerstation_id,
+                    properties,
+                )
+            else:
+                LOGGER.warning(
+                    "No telemetry properties available from GoodWe for plant %s",
+                    powerstation_id,
+                )
+                _set_goodwe_status("error")
+
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.exception("Error during GoodWe data polling: %s", exc)
+            _set_goodwe_status("error")
+
+        # Wait for interval with jitter, but check stop_event frequently
+        jitter = random.uniform(-MAX_JITTER_SECONDS, MAX_JITTER_SECONDS)
+        sleep_duration = max(60.0, data_poll_interval + jitter)
+        stop_event.wait(sleep_duration)
+
+    LOGGER.info("Data poll loop stopped")
+
+
+def _heartbeat_loop(
+    publisher,
+    heartbeat_interval: int,
+    stop_event: threading.Event,
+) -> None:
+    """Fast heartbeat loop - sends cached telemetry + status every 10 seconds (configurable)."""
+    LOGGER.info("Heartbeat loop started (interval=%ss)", heartbeat_interval)
+
+    while not stop_event.is_set():
+        try:
+            # Build heartbeat payload with cached telemetry
+            cached = _get_cached_telemetry()
+            status = _get_goodwe_status()
+            timestamp = int(time.time())
+
+            # Create payload with heartbeat DP + all cached telemetry
+            payload = dict(cached)
+            payload[HEARTBEAT_DP_IDENTIFIER] = f"{status}_{timestamp}"
+
+            # Publish heartbeat with cached data
+            try:
+                publisher.report(payload)
+                LOGGER.debug(
+                    "Heartbeat published: goodwe_ok=%s, cached_props=%d",
+                    payload[HEARTBEAT_DP_IDENTIFIER],
+                    len(cached),
+                )
+            except Exception as pub_exc:  # pylint: disable=broad-except
+                LOGGER.warning("Heartbeat publish failed: %s", pub_exc)
+
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.exception("Error during heartbeat: %s", exc)
+
+        # Wait for interval, but check stop_event
+        stop_event.wait(heartbeat_interval)
+
+    LOGGER.info("Heartbeat loop stopped")
 
 
 def main() -> None:
@@ -187,12 +380,14 @@ def main() -> None:
         LOGGER.error("GOODWE_POWERSTATION_ID is required")
         sys.exit(1)
 
-    poll_interval = _read_poll_interval()
+    heartbeat_interval = _read_heartbeat_interval()
+    data_poll_interval = _read_data_poll_interval()
 
     LOGGER.info(
-        "Starting GoodWe → Tuya SOC bridge (powerstation_id=%s, interval=%ss)",
+        "Starting GoodWe → Tuya SOC bridge (powerstation_id=%s, heartbeat=%ss, data_poll=%ss)",
         powerstation_id,
-        poll_interval,
+        heartbeat_interval,
+        data_poll_interval,
     )
 
     publisher = build_publisher_from_env()
@@ -201,96 +396,57 @@ def main() -> None:
 
     api = GoodweApi()
 
+    # Event to signal threads to stop
+    stop_event = threading.Event()
+
+    # Start data poll thread
+    data_thread = threading.Thread(
+        target=_data_poll_loop,
+        args=(api, powerstation_id, publisher, data_poll_interval, stop_event),
+        daemon=True,
+        name="GoodWeDataPoll",
+    )
+    data_thread.start()
+
+    # Start heartbeat thread
+    heartbeat_thread = threading.Thread(
+        target=_heartbeat_loop,
+        args=(publisher, heartbeat_interval, stop_event),
+        daemon=True,
+        name="TuyaHeartbeat",
+    )
+    heartbeat_thread.start()
+
+    # Signal handler for graceful shutdown
+    def signal_handler(signum, frame):
+        LOGGER.info("Received signal %s; initiating graceful shutdown...", signum)
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     try:
-        while True:
-            try:
-                properties: Dict[str, Any] = {}
-
-                soc_payload = api.GetSoc(powerstation_id)
-                entry = _extract_first_soc_entry(soc_payload)
-                if not entry:
-                    LOGGER.warning("No SOC data returned for plant %s", powerstation_id)
-                else:
-                    soc_value = _coerce_soc(entry.get("power"))
-                    status_value = _map_status(entry.get("status"))
-
-                    if soc_value is None:
-                        LOGGER.warning("Missing or invalid SOC 'power' value in response: %s", entry)
-                    else:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["battery_soc"]] = soc_value
-                        properties[TUYA_PROPERTY_IDENTIFIERS["status"]] = status_value
-
-                summary = api.GetMonitorSummaryByPowerstationId(powerstation_id)
-                summary_data = (
-                    summary.get("data")
-                    if isinstance(summary, dict) and not summary.get("hasError")
-                    else {}
-                )
-
-                if summary_data:
-                    load_w = _coerce_power(summary_data.get("load"))
-                    pv_w = _coerce_power(summary_data.get("pv"))
-                    eday = _coerce_integer_metric(summary_data.get("eday"))
-                    emonth = _coerce_integer_metric(summary_data.get("emonth"))
-                    day_income = _coerce_integer_metric(summary_data.get("day_income"))
-
-                    if load_w is not None:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["load_w"]] = load_w
-                    if pv_w is not None:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]] = pv_w
-                    if eday is not None:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]] = eday
-                    if emonth is not None:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]] = emonth
-                    if day_income is not None:
-                        properties[TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]] = day_income
-                elif isinstance(summary, dict) and summary.get("hasError"):
-                    LOGGER.warning(
-                        "Failed to fetch GoodWe monitor summary for plant %s: %s",
-                        powerstation_id,
-                        summary.get("msg") or summary.get("code") or summary,
-                    )
-
-                if properties:
-                    # Build and persist a canonical snapshot for local visualization (FastAPI/ESP32)
-                    now_ts = int(time.time())
-                    snapshot: Dict[str, Any] = {
-                        "powerstation_id": powerstation_id,
-                        "timestamp": now_ts,
-                        # Canonical English-ish keys for the demo UI/firmware
-                        "battery_soc": properties.get(TUYA_PROPERTY_IDENTIFIERS["battery_soc"]),
-                        "status": properties.get(TUYA_PROPERTY_IDENTIFIERS["status"]),
-                        "load_w": properties.get(TUYA_PROPERTY_IDENTIFIERS["load_w"]),
-                        "pv_power_w": properties.get(TUYA_PROPERTY_IDENTIFIERS["pv_power_w"]),
-                        "eday_kwh": properties.get(TUYA_PROPERTY_IDENTIFIERS["inverter_eday_kwh"]),
-                        "emonth_kwh": properties.get(TUYA_PROPERTY_IDENTIFIERS["inverter_emonth_kwh"]),
-                        "day_income": properties.get(TUYA_PROPERTY_IDENTIFIERS["kpi_day_income_usd"]),
-                        # Also include original Tuya-friendly keys for convenience
-                        "tuya": properties,
-                    }
-                    _persist_snapshot(snapshot)
-                    # Publish to TuyaLink (non-blocking of snapshot persistence)
-                    try:
-                        publisher.report(properties)
-                        LOGGER.info(
-                            "Published Tuya telemetry for plant %s: %s",
-                            powerstation_id,
-                            properties,
-                        )
-                    except Exception as pub_exc:  # pylint: disable=broad-except
-                        LOGGER.warning("Tuya publish failed: %s", pub_exc)
-                else:
-                    LOGGER.warning(
-                        "No telemetry properties available to publish for plant %s",
-                        powerstation_id,
-                    )
-            except Exception as exc:  # pylint: disable=broad-except
-                LOGGER.exception("Error during SOC polling/publish: %s", exc)
-
-            _sleep_with_jitter(poll_interval)
+        # Wait for stop signal
+        while not stop_event.is_set():
+            stop_event.wait(1)
     except KeyboardInterrupt:
         LOGGER.info("Interrupted; shutting down GoodWe → Tuya SOC bridge.")
+        stop_event.set()
     finally:
+        # Send graceful shutdown notification
+        try:
+            LOGGER.info("Sending shutdown notification to Tuya...")
+            shutdown_payload = _get_cached_telemetry()
+            shutdown_payload[HEARTBEAT_DP_IDENTIFIER] = "shutdown"
+            publisher.report(shutdown_payload)
+            LOGGER.info("Shutdown notification sent successfully")
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.warning("Failed to send shutdown notification: %s", exc)
+
+        # Wait for threads to finish (with timeout)
+        data_thread.join(timeout=5)
+        heartbeat_thread.join(timeout=2)
+
         try:
             publisher.close()
         except Exception as exc:  # pylint: disable=broad-except
