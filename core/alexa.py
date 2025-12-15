@@ -1,10 +1,9 @@
 from fastapi import APIRouter
-from api.endpoints import chat_endpoint, goodwe_api, DEFAULT_STATION_ID, DEFAULT_STATION_NAME
-
-
+from core.llm import call_llm
 
 
 router = APIRouter()
+
 
 def build_alexa_response(speech_text: str, end_session: bool = False):
     """
@@ -20,7 +19,6 @@ def build_alexa_response(speech_text: str, end_session: bool = False):
             "shouldEndSession": end_session
         }
     }
-
 
 
 @router.post("/alexa")
@@ -41,17 +39,10 @@ async def alexa_endpoint(req: dict):
             if not user_input:
                 return build_alexa_response("I couldn't understand what you said.", end_session=False)
 
-            
-
-            # Handle user input
-            class ChatRequest:
-                def __init__(self, user_input):
-                    self.user_input = user_input
-                    self.plant_id = None
-
-            chat_req = ChatRequest(user_input)
-            response = await chat_endpoint(chat_req)
-            return build_alexa_response(response.response, False)
+            # Call the LLM directly (same pattern as Google webhook)
+            result = await call_llm(user_input, powerstation_id=None, user_ip=None)
+            response_text = result.get("response", "")
+            return build_alexa_response(response_text, end_session=False)
 
         else:
             return build_alexa_response("Unsupported request.", end_session=True)
