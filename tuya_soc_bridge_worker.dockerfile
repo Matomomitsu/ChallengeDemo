@@ -4,7 +4,10 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apk add --no-cache --virtual .build-deps build-base \
+    && apk add --no-cache libgcc libstdc++ \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 # Copy project files
 COPY ./api ./api
