@@ -46,8 +46,31 @@ class PlantListResponse(BaseModel):
 # (removed) CSV-based solar query request schema
 
 goodwe_api = GoodweApi()
-DEFAULT_STATION_NAME = os.getenv("DEFAULT_STATION_NAME")
-DEFAULT_STATION_ID = os.getenv("DEFAULT_STATION_ID")
+
+
+def _env_first(*names: str) -> Optional[str]:
+    """Return the first non-blank value among the given environment variables."""
+    for name in names:
+        value = (os.getenv(name) or "").strip()
+        if value:
+            return value
+    return None
+
+
+def _default_station() -> tuple[Optional[str], Optional[str]]:
+    """Return the default plant (id, name) configured in the environment.
+
+    .env.example and the README document DEFAULT_POWERSTATION_ID/NAME; the older
+    DEFAULT_STATION_ID/NAME are still accepted so existing deployments keep working.
+    """
+    return (
+        _env_first("DEFAULT_POWERSTATION_ID", "DEFAULT_STATION_ID"),
+        _env_first("DEFAULT_POWERSTATION_NAME", "DEFAULT_STATION_NAME"),
+    )
+
+
+# Kept at module level because core.alexa imports these names.
+DEFAULT_STATION_ID, DEFAULT_STATION_NAME = _default_station()
 
 # Main chat endpoint (maintains conversation context)
 @router.post("/chat", response_model=ChatResponse)
@@ -117,18 +140,20 @@ async def battery_status():
     """
     🔋 Battery Status (GoodWe)
 
-    Returns battery status information from the GoodWe SEMS portal. Automatically
-    selects the first available plant.
+    Returns battery status information from the GoodWe SEMS portal for
+    DEFAULT_POWERSTATION_ID, or the plant named DEFAULT_POWERSTATION_NAME,
+    falling back to the first available plant.
     """
     try:
-        powerstation_id = DEFAULT_STATION_ID
+        powerstation_id, station_name = _default_station()
         if not powerstation_id:
             plants = goodwe_api.ListPlants() or {}
             plant_list = plants.get("plants", []) if isinstance(plants, dict) else []
             if not plant_list:
                 raise HTTPException(status_code=404, detail="No plants available for the configured account")
-            # Prefer DEFAULT_STATION_NAME when present
-            preferred = next((p for p in plant_list if (p.get("stationname") or "").strip().lower() == DEFAULT_STATION_NAME.strip().lower()), None)
+            # Prefer the configured station name when present
+            wanted = (station_name or "").lower()
+            preferred = next((p for p in plant_list if wanted and (p.get("stationname") or "").strip().lower() == wanted), None)
             powerstation_id = (preferred or plant_list[0]).get("powerstation_id")
         soc = goodwe_api.GetSoc(powerstation_id)
         if soc is None:
@@ -148,7 +173,8 @@ async def google_webhook(request: Request):
     try:
         body = await request.json()
         user_input = body.get("queryResult", {}).get("queryText", "")
-        response_text = await call_geminiapi(user_input)
+        result = await call_geminiapi(user_input)
+        response_text = result["response"]
         return {
             "fulfillmentMessages": [
                 {

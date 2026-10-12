@@ -181,7 +181,7 @@ Every Tuya mutation takes a `confirm` flag, so the model has to explicitly commi
 
 ## Quick start
 
-**Requirements:** Python 3.9+ · Node 22+ (only for rebuilding the web demo) · a Google Gemini API key · GoodWe SEMS credentials · Tuya Cloud keys (optional, for automation features)
+**Requirements:** Python 3.11+ (required by the pinned dependencies; the Docker images use 3.13) · Node 22+ (only for rebuilding the web demo) · a Google Gemini API key · GoodWe SEMS credentials · Tuya Cloud keys (optional, for automation features)
 
 ```bash
 pip install -r requirements.txt
@@ -342,7 +342,7 @@ Routes are mounted under `/api`, with a top-level `/chat` alias kept for the leg
 
 ## Tech stack
 
-`Python 3.9+` · `FastAPI` · `Uvicorn` · `Pydantic` · `Google Gemini 2.5 Flash` (main) · `LangChain` + `Groq` (branch) · `Tuya Cloud API v2.0` · `TuyaLink MQTT over TLS` · `paho-mqtt` · `GoodWe SEMS` · `Typer` · `Rich` · `SQLite` · `pandas` / `numpy` · `Eleventy` + `Nunjucks` · `Alexa Skills Kit` · `ESP32` · `Docker`
+`Python 3.11+` · `FastAPI` · `Uvicorn` · `Pydantic` · `Google Gemini 2.5 Flash` (main) · `LangChain` + `Groq` (branch) · `Tuya Cloud API v2.0` · `TuyaLink MQTT over TLS` · `paho-mqtt` · `GoodWe SEMS` · `Typer` · `Rich` · `SQLite` · `pandas` / `numpy` · `Eleventy` + `Nunjucks` · `Alexa Skills Kit` · `ESP32` · `Docker`
 
 ---
 

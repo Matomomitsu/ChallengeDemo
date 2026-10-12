@@ -1,6 +1,5 @@
 import time
 import os
-from urllib import response
 from zoneinfo import ZoneInfo
 import requests
 import base64
@@ -326,7 +325,7 @@ class GoodweApi:
             print("Plants retrieved successfully!")
             return soc
         else:
-            print(f"Failed to retrieve plants with status code: {response.status_code}")
+            print("Failed to retrieve battery status: plant detail request failed")
 
             return None
 
